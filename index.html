@@ -1,161 +1,371 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EchoPrompter</title>
+<title>Prompty Studio | Teleprompter Profesional</title>
+<meta name="description" content="Prompty es un teleprompter profesional con seguimiento por voz para grabaciones, streams y presentaciones en vivo.">
+<meta name="theme-color" content="#0d1117">
+<link rel="icon" href="icons/play-white.svg" type="image/svg+xml">
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="teleprompter.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap" rel="stylesheet">
-
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Manrope:wght@500;700;800&display=swap" rel="stylesheet">
 </head>
-<body onLoad="main();">
-<div class="container">
-  <div class="top-controls">
-    <div id="stopclock" class="control-box">
-      
-      <div id="stopwatch"><div id="text-output">
-        <div id="stopwatch-display">00:00:00.000</div></div>
-        <!-- Stopwatch controls will be managed by the existing settings functionality -->
+<body data-entry-view="reader" onload="main();">
+  <div class="app-shell">
+    <!-- Slim Sidebar -->
+    <aside class="slim-sidebar">
+      <div class="sidebar-top">
+        <div class="brand-mark" title="Prompty Studio">P</div>
       </div>
-    </div>
-    
-    <div id="options" class="control-box">
-      
-
-
-<div id="settings">
-  <div id="s_play" class="s_item"><div class="s_flex">
-    <div class="s_icon" id="s_play_icon"><img src="icons/play-white.svg" class="s_img" id="s_play_img" /></div><span class="s_text" id="s_play_text"></span>
-  </div></div>
-  <div id="s_restart" class="s_item"><div class="s_flex">
-    <div class="s_icon" id="s_restart_icon"><img src="icons/restart-white.svg" class="s_img" id="s_restart_img" /></div><span class="s_text"></span>
-  </div></div>
-  <div id="s_edit" class="s_item"><div class="s_flex">
-    <div class="s_icon" id="s_edit_icon"><img src="icons/edit-white.svg" class="s_img" id="s_edit_img" /></div><span class="s_text"></span>
-  </div></div>
-  <div id="s_lang" class="s_item"><div class="s_flex">
-    <div class="s_icon" id="s_lang_icon"><img src="icons/lang-white.svg" class="s_img" id="s_lang_img" /></div><span class="s_text"></span>
-  </div></div>
-  <div id="s_bg" class="s_item"><div class="s_flex">
-    <div class="s_icon" id="s_bg_icon"><img src="icons/bg-white.svg" class="s_img" id="s_bg_img" /></div><span class="s_text"></span>
-  </div></div>
-  <div id="s_fg" class="s_item"><div class="s_flex">
-    <div class="s_icon" id="s_fg_icon"><img src="icons/fg-white.svg" class="s_img" id="s_fg_img" /></div><span class="s_text"></span>
-  </div></div>
-  <div id="s_size" class="s_item"><div class="s_flex">
-    <div class="s_icon" id="s_size_icon"><img src="icons/size-white.svg" class="s_img" id="s_size_img" /></div><span class="s_text"></span>
-  </div></div>
-  <div id="s_font" class="s_item"><div class="s_flex">
-    <div class="s_icon" id="s_font_icon"><img src="icons/font-white.svg" class="s_img" id="s_font_img" /></div><span class="s_text"></span>
-  </div></div>
-  <div id="s_margin" class="s_item"><div class="s_flex">
-    <div class="s_icon" id="s_margin_icon"><img src="icons/margin-white.svg" class="s_img" id="s_margin_img" /></div><span class="s_text"></span>
-  </div></div>
-  <div id="s_mirrorv" class="s_item"><div class="s_flex">
-    <div class="s_icon" id="s_mirrorv_icon"><img src="icons/mirrorv-white.svg" class="s_img" id="s_mirrorv_img" /></div><span class="s_text"></span>
-  </div></div>
-  <div id="s_mirrorh" class="s_item"><div class="s_flex">
-    <div class="s_icon" id="s_mirrorh_icon"><img src="icons/mirrorh-white.svg" class="s_img" id="s_mirrorh_img" /></div><span class="s_text"></span>
-  </div></div>
-  <div id="s_showrec" class="s_item"><div class="s_flex">
-    <div class="s_icon" id="s_showrec_icon"><img src="icons/showrec-white.svg" class="s_img" id="s_showrec_img" /></div><span class="s_text"></span>
-  </div></div>
-  <div id="s_clear" class="s_item"><div class="s_flex">
-    <div class="s_icon" id="s_clear_icon"><img src="icons/clear-white.svg" class="s_img" id="s_clear_img" /></div><span class="s_text"></span>
-  </div></div>
-  <div id="messages">
-    <!--<div class="info"><div class="s_flex">
-      <div class="s_icon"><img src="icons/info-white.svg" class="s_img" /></div><span class="s_msg">This is an info. And it contains some text which is quite a bit longer... Just to see whether it will work</span>
-    </div></div>
-    <div class="warning"><div class="s_flex">
-      <div class="s_icon"><img src="icons/warning-white.svg" class="s_img" /></div><span class="s_msg">This is a warning.</span>
-    </div></div>
-    <div class="error"><div class="s_flex">
-      <div class="s_icon"><img src="icons/error-white.svg" class="s_img" /></div><span class="s_msg">This is an error.</span>
-    </div></div>-->
-  </div>
-</div>
-
-
-      
-
-
-
-
-    </div>
-    <div class="control-box">
-      
-      <div id="timer-container">
-        <div id="timer-controls">
-            <input id="minutes" type="number" placeholder="MM" min="0" max="59">
-            <input id="seconds" type="number" placeholder="SS" min="0" max="59">
-            <button id="start-timer"><i class="fas fa-play"></i></button>
-            <button id="pause-timer" style="display: none;"><i class="fas fa-pause"></i></button>
-            <button id="stop-timer" style="display: none;"><i class="fas fa-stop"></i></button>
+      <nav class="sidebar-nav">
+        <button type="button" class="nav-icon active" title="Lector en vivo" id="nav-reader-btn">
+          <i class="fa-solid fa-wave-square"></i>
+        </button>
+        <button type="button" class="nav-icon" title="Biblioteca de Prompts" id="nav-prompts-btn">
+          <i class="fa-solid fa-book-open"></i>
+        </button>
+        <button type="button" class="nav-icon" title="Ajustes y Calibración" id="nav-settings-btn">
+          <i class="fa-solid fa-sliders"></i>
+        </button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="mic-status-icon" title="Estado del micrófono" id="sidebar-mic-icon">
+          <i class="fa-solid fa-microphone"></i>
         </div>
-        <div id="text-output"><div id="time-display">00:00</div></div>
-      </div> 
-    </div>  
-  </div>
-  <div id="text-box" class="text-box">
-    <div id="disable_block"></div>
+      </div>
+    </aside>
 
-  <div id="teleprompter">
-    <div id="settings_container"><div id="settings_inner_container">
+    <!-- Main Workspace (Reader) -->
+    <main class="app-main app-main-reader">
+      <header class="studio-header">
+        <div class="header-info">
+          <div class="document-badge"><i class="fa-solid fa-file-lines"></i> <span id="active-script-label">Sin título</span></div>
+          <div class="time-badge"><i class="fa-solid fa-stopwatch"></i> <span id="stopwatch-display">00:00:00.000</span></div>
+        </div>
+        <div class="header-stats">
+          <div class="stat-pill" title="Progreso de lectura"><i class="fa-regular fa-circle-check"></i> <strong id="reader-progress-percent">0%</strong></div>
+          <div class="stat-pill" title="Motor de voz"><i class="fa-solid fa-satellite-dish"></i> <strong id="reader-backend-status">Listo</strong></div>
+        </div>
+      </header>
+
+      <div class="reader-workspace">
+        <div class="reader-surface-wrapper">
+          <div id="reader-surface" class="reader-surface">
+            <!-- Overlays -->
+            <div class="reader-overlay-top">
+              <div class="status-strip">
+                <span class="pulse-indicator" id="reader-mic-status-overlay">Mic: Listo</span>
+                <span class="pill-dark" id="reader-language-status-overlay">es-AR</span>
+              </div>
+            </div>
+
+            <div class="reader-stage">
+              <div id="disable_block"></div>
+              <div id="teleprompter">
+                <div id="play_div"><span id="play_text"></span></div>
+                <div id="edit_text_div" hidden>
+                  <div id="text_editor_container">
+                    <textarea id="text_editor" cols="80" rows="24" aria-label="Editor rápido del texto"></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Controls Overlay -->
+            <div class="reader-overlay-bottom">
+              <div class="glass-command-bar" id="reader-command-bar">
+                <button id="reader-open-quick-panel-bottom" type="button" class="btn-glass icon-only" title="Ajustes visuales rápidos">
+                  <i class="fa-solid fa-font"></i>
+                </button>
+                <button id="reader-restart" type="button" class="btn-glass icon-only" title="Reiniciar lectura">
+                  <i class="fa-solid fa-rotate-left"></i>
+                </button>
+                <button id="reader-play-toggle" type="button" class="btn-glass btn-primary btn-large icon-only" title="Iniciar/Pausar (Espacio)">
+                  <i class="fa-solid fa-play" id="play-icon"></i>
+                </button>
+                <button id="reader-clean-toggle" type="button" class="btn-glass icon-only" title="Modo Pantalla Completa">
+                  <i class="fa-solid fa-expand"></i>
+                </button>
+                <button id="reader-edit-quick" type="button" class="btn-glass icon-only" title="Editar en pantalla" onclick="window.prompter.settingsClick('edit')">
+                  <i class="fa-solid fa-pen"></i>
+                </button>
+              </div>
+            </div>
+            
+            <div class="progress-rail-bottom" aria-hidden="true">
+              <div id="reader-progress-fill" class="progress-fill"></div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Live Recognition Panel (Bottom) -->
+        <section id="rec_text" class="reader-recognition-panel" aria-live="polite">
+          <div class="rec-content">
+            <span id="disconnected_texts">
+              <span id="looking_for" class="text-expected">Esperando inicio...</span>
+              <span id="recorded" class="text-heard">Esperando inicio...</span>
+            </span>
+            <span id="connected_texts"></span>
+            <span id="mic_status" class="status-indicator">Listo</span>
+          </div>
+          <div class="rec-actions">
+            <button type="button" id="prev" class="btn-icon-small" title="Anterior coincidencia"><i class="fa-solid fa-arrow-left"></i></button>
+            <button type="button" id="next" class="btn-icon-small" title="Siguiente coincidencia"><i class="fa-solid fa-arrow-right"></i></button>
+            <button type="button" id="last" class="btn-icon-small" title="Última coincidencia"><i class="fa-solid fa-bullseye"></i></button>
+          </div>
+        </section>
+      </div>
+
+      <!-- Quick Settings Off-Canvas -->
+      <div id="quick-settings-backdrop" class="quick-settings-backdrop" hidden></div>
+      <aside id="quick-settings-panel" class="quick-settings-panel" aria-hidden="true">
+        <div class="panel-header">
+          <h4>Ajustes Visuales</h4>
+          <button type="button" id="quick-settings-close" class="btn-icon-small"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="panel-body glass-scroll">
+          <label class="field-group">
+            <span>Tamaño del texto</span>
+            <input id="quick-text-size" type="range" min="40" max="220" step="2" value="120">
+          </label>
+          <label class="field-group">
+            <span>Ancho del bloque</span>
+            <input id="quick-text-width" type="range" min="40" max="100" step="1" value="84">
+          </label>
+          <label class="field-group">
+            <span>Interlineado</span>
+            <input id="quick-text-line-height" type="range" min="90" max="220" step="5" value="125">
+          </label>
+          <div class="field-row">
+            <label class="field-group flex-1">
+              <span>Color Texto</span>
+              <input id="quick-text-color" type="color" value="#f2f2f2">
+            </label>
+            <label class="field-group flex-1">
+              <span>Color Progreso</span>
+              <input id="quick-highlight-color" type="color" value="#53d3c1">
+            </label>
+          </div>
+          <label class="field-group">
+            <span>Alineación</span>
+            <select id="quick-text-align" class="modern-select">
+              <option value="center">Centro</option>
+              <option value="left">Izquierda</option>
+              <option value="justify">Justificado</option>
+            </select>
+          </label>
+        </div>
+      </aside>
+    </main>
+
+    <!-- Prompts Modal -->
+    <dialog id="prompts-modal" class="studio-modal">
+      <div class="modal-content large-modal">
+        <div class="modal-header">
+          <h3><i class="fa-solid fa-book-open text-accent"></i> Biblioteca de Prompts</h3>
+          <button type="button" class="btn-close-modal" id="close-prompts-modal"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body layout-split">
+          <!-- Library List -->
+          <div class="library-sidebar">
+            <div class="library-tools">
+              <div class="search-box">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input id="script-search" type="search" placeholder="Buscar guiones...">
+              </div>
+              <button id="new-script" class="btn-primary btn-full"><i class="fa-solid fa-plus"></i> Nuevo</button>
+            </div>
+            <div class="library-stats">En biblioteca: <strong id="script-library-status">0</strong></div>
+            <div id="script-list" class="script-list-container custom-scrollbar"></div>
+          </div>
+          <!-- Editor -->
+          <div class="prompt-editor-area">
+            <div class="editor-topbar">
+              <input id="script-title" type="text" class="title-input transparent-input" placeholder="Título del guion...">
+              <div class="editor-actions">
+                <span id="editor-word-count" class="word-count-badge">0 pal.</span>
+                <button id="duplicate-script" class="btn-glass-secondary" title="Duplicar"><i class="fa-regular fa-copy"></i></button>
+                <button id="delete-script" class="btn-danger-outline" title="Eliminar"><i class="fa-regular fa-trash-can"></i></button>
+              </div>
+            </div>
+            <div class="editor-main">
+              <textarea id="prompt-editor" class="modern-textarea custom-scrollbar" placeholder="Escribí tu guion acá..."></textarea>
+            </div>
+            <div class="editor-bottombar">
+              <span id="editor-dirty-state" class="state-pill dirty">Sin guardar</span>
+              <div class="action-group">
+                <button id="save-script" class="btn-glass-secondary"><i class="fa-regular fa-floppy-disk"></i> Guardar</button>
+                <button id="use-script-in-reader" class="btn-primary"><i class="fa-solid fa-wave-square"></i> Usar en Lector</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </dialog>
+
+    <!-- Settings Modal -->
+    <dialog id="settings-modal" class="studio-modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3><i class="fa-solid fa-sliders text-accent"></i> Ajustes de Prompty</h3>
+          <button type="button" class="btn-close-modal" id="close-settings-modal"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body custom-scrollbar settings-grid">
+          
+          <!-- Voice Settings -->
+          <div class="settings-card">
+            <h4><i class="fa-solid fa-headset"></i> Seguimiento por voz</h4>
+            <label class="field-group">
+              <span>Idioma</span>
+              <select id="language-group" class="modern-select"></select>
+            </label>
+            <label class="field-group">
+              <span>Variante</span>
+              <select id="language-variant" class="modern-select"></select>
+            </label>
+            <label class="field-group" title="Cuántas palabras debe escuchar antes de avanzar">
+              <span>Retraso de seguimiento <span id="follow-lag-value" class="value-tag">4</span></span>
+              <input id="follow-lag" type="range" min="0" max="20" step="1" value="4">
+            </label>
+          </div>
+
+          <!-- Reading Settings -->
+          <div class="settings-card">
+            <h4><i class="fa-solid fa-eye"></i> Calibración Visual</h4>
+            <label class="field-group">
+              <span>Posición de lectura</span>
+              <select id="reading-position" class="modern-select">
+                <option value="top">Superior (Recomendado)</option>
+                <option value="center">Centro</option>
+              </select>
+            </label>
+            <div class="field-row">
+              <label class="field-group flex-1">
+                <span>Líneas anticipadas <span class="value-tag" id="reading-top-lines-value">2</span></span>
+                <input id="reading-top-lines" type="number" min="1" max="6" step="1" value="2" class="modern-input">
+              </label>
+              <label class="field-group flex-1">
+                <span>Margen Sup. (px) <span class="value-tag" id="reading-top-margin-value">140</span></span>
+                <input id="reading-top-margin" type="number" min="0" max="600" step="10" value="140" class="modern-input">
+              </label>
+            </div>
+            <div class="toggles-group">
+               <label class="toggle-row">
+                 <span>Mostrar texto detectado</span>
+                 <input type="checkbox" id="showrec-toggle" checked class="modern-checkbox">
+               </label>
+               <label class="toggle-row">
+                 <span>Modo Espejo (V)</span>
+                 <input type="checkbox" id="mirrorv-toggle" class="modern-checkbox">
+               </label>
+               <label class="toggle-row">
+                 <span>Modo Espejo (H)</span>
+                 <input type="checkbox" id="mirrorh-toggle" class="modern-checkbox">
+               </label>
+            </div>
+          </div>
+
+          <!-- Advanced AI Match Tuning -->
+          <div class="settings-card full-width">
+            <details class="advanced-details">
+              <summary>Ajustes avanzados de reconocimiento</summary>
+              <div class="adv-grid">
+                <div class="adv-col">
+                  <h5>Precisión de coincidencia</h5>
+                  <label class="field-group mini"><span>Corta</span><input id="match-short-threshold" type="number" value="70"></label>
+                  <label class="field-group mini"><span>Media</span><input id="match-medium-threshold" type="number" value="78"></label>
+                  <label class="field-group mini"><span>Larga</span><input id="match-long-threshold" type="number" value="84"></label>
+                  <label class="field-group mini"><span>Alta</span><input id="match-strong-threshold" type="number" value="96"></label>
+                  <label class="field-group mini"><span>Ignorar largo</span><input id="match-skip-short-word-length" type="number" value="3"></label>
+                  <label class="field-group mini"><span>Requeridas seguidas</span><input id="match-required-sequential" type="number" value="2"></label>
+                </div>
+                <div class="adv-col">
+                  <h5>Reenganche Automático</h5>
+                  <label class="toggle-row mini"><span>Habilitar</span><input id="rejoin-enabled" type="checkbox" checked></label>
+                  <label class="field-group mini"><span>Ventana</span><input id="rejoin-lookahead-window" type="number" value="18"></label>
+                  <label class="field-group mini"><span>Largo sec.</span><input id="rejoin-sequence-length" type="number" value="3"></label>
+                  <label class="field-group mini"><span>Confianza</span><input id="rejoin-confidence-threshold" type="number" value="82"></label>
+                  <label class="field-group mini"><span>Pausa max</span><input id="rejoin-max-gap-in-speech" type="number" value="2"></label>
+                  <label class="field-group mini"><span>Espera (s)</span><input id="rejoin-cooldown" type="number" value="1"></label>
+                </div>
+              </div>
+            </details>
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button id="restore-defaults" class="btn-ghost text-muted"><i class="fa-solid fa-rotate-left"></i> Valores de fábrica</button>
+          <button class="btn-primary" onclick="document.getElementById('settings-modal').close()">Listo</button>
+        </div>
+      </div>
+    </dialog>
+
+    <div id="messages" class="toast-stack" aria-live="polite"></div>
+    
+    <!-- Hidden Elements needed by Teleprompter.js -->
+    <div class="app-support-dom" hidden aria-hidden="true">
+      <h2 id="sidebar-active-title"></h2>
+      <p id="sidebar-active-preview"></p>
+      <strong id="sidebar-progress"></strong>
+      <strong id="sidebar-mic"></strong>
+      <strong id="reader-mic-status"></strong>
+      <strong id="reader-language-status"></strong>
+      <strong id="reader-follow-status"></strong>
+      <strong id="reader-progress-meta"></strong>
       
-    </div></div>
-
-    <div id="play_div"><span id="play_text"></span></div>
-    <div id="edit_text_div"><div id="text_editor_container"><textarea id="text_editor" cols="80" rows="50"></textarea></div></div>
-    <div id="rec_text">
-      <div class="txt_cmp_header">
-        Looking for:&nbsp;<br />
-        Recognized:&nbsp;
-      </div>
-      <div class="txt_cmp_content">
-        <span id="disconnected_texts">
-          <span id="looking_for"></span><br />
-          <span id="recorded"></span>
-        </span>
-        <span id="connected_texts"></span>
-      </div>
-      <div class="txt_cmp_settings">
-        <img src="icons/previous-white.svg" class="txt_cmp_icon" id="prev" />
-        <img src="icons/next-white.svg" class="txt_cmp_icon" id="next" />
-        <img src="icons/last-white.svg" class="txt_cmp_icon" id="last" />
-      </div>
+      <!-- Duplicated/Legacy Quick settings bindings expected by Teleprompter.js -->
+      <input id="text-box-width" type="range" value="84">
+      <input id="text-size-live" type="range" value="120">
+      <input id="line-height-live" type="range" value="125">
+      <select id="font-family-live"><option value="'Instrument Sans', sans-serif">Instrument Sans</option></select>
+      <select id="font-weight-live"><option value="400">Regular</option></select>
+      <select id="text-align-live"><option value="center">Centro</option></select>
+      <input id="highlight-color-live" type="color" value="#53d3c1">
+      <input id="text-color-live" type="color" value="#f2f2f2">
+      <input id="quick-line-height" type="range" value="125">
+      <input id="reading-top-margin" type="number" value="140">
+      <input id="reading-top-lines" type="number" value="2">
+      <input id="highlight-color" type="color" value="#53d3c1">
     </div>
   </div>
 
-  
-  
-  
-  </div>
-</div>
-<script src="clocks.js"></script>
-<script src="SpeechRecognizer.js"></script>
+  <script src="clocks.js"></script>
+  <script src="SpeechRecognizer.js"></script>
   <script src="constants.js"></script>
   <script src="helpers.js"></script>
   <script src="Teleprompter.js"></script>
-  <script type="text/javascript">
-    function listener(type, argA, argB) {
-      if (type == 'result') {
-        console.log(argA + ' // ' + argA + argB);
+  <script>
+    function main() {
+      window.prompter = new Teleprompter();
+      
+      // SPA Navigation bindings
+      document.getElementById('nav-prompts-btn').addEventListener('click', () => {
+        document.getElementById('prompts-modal').showModal();
+      });
+      document.getElementById('nav-settings-btn').addEventListener('click', () => {
+        document.getElementById('settings-modal').showModal();
+      });
+      document.getElementById('close-prompts-modal').addEventListener('click', () => {
+        document.getElementById('prompts-modal').close();
+      });
+      document.getElementById('close-settings-modal').addEventListener('click', () => {
+        document.getElementById('settings-modal').close();
+      });
+
+      // Quick settings fix mapping (since JS expects specific IDs)
+      const qlh = document.getElementById('quick-text-line-height');
+      const realQlh = document.getElementById('quick-line-height');
+      if (qlh && realQlh) {
+        qlh.addEventListener('input', (e) => {
+          realQlh.value = e.target.value;
+          realQlh.dispatchEvent(new Event('input'));
+        });
       }
     }
-
-    function main() {
-      let prompter = new Teleprompter();
-      // let rec = new SpeechRecognizer(listener);
-      // rec.start();
-      // window.setTimeout(() => rec.stop(), 10000);
-    }
   </script>
-  <footer>
-    Made by Sherwin with ❤️
-  </footer>
-  
 </body>
 </html>

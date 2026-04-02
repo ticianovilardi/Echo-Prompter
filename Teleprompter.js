@@ -1,31 +1,373 @@
 class Teleprompter {
   constructor() {
+    this.pageMap = {
+      reader: 'index.html',
+      prompts: 'prompts.html',
+      settings: 'settings.html',
+    };
+    this.storageKeys = {
+      appView: 'promptyAppView',
+      textLibrary: 'promptyTextLibrary',
+      activeTextId: 'promptyActiveTextId',
+      settings: 'promptySettings',
+      dirtyDraft: 'promptyDirtyDraft',
+    };
     this.text = DEFAULT_TEXT_EN;
-    document.getElementById('text_editor').value = this.text;
-    this.adaptText();
+    this.textLibrary = [];
+    this.activeTextId = null;
+    this.appView = document.body.dataset.entryView || 'reader';
+    this.filteredQuery = '';
+    this.cleanMode = false;
+    this.sessionCompleted = false;
     this.msgCounter = 0;
     this.colorWarn = true;
     this.colorWarnIdx = -1;
     this.play = false;
     this.edit = false;
-    this.settings = ['play', 'restart', 'edit', 'lang', 'bg', 'fg', 'size', 'font', 'margin', 'mirrorv', 'mirrorh', 'showrec', 'clear'];
     this.langValues = LANGUAGE_VALUES;
-    this.panelOpened = 0;
     this.showMatchIdx = -1;
     this.speechPosition = 0;
+    this.micStatus = 'Idle';
     this.currentRecording = [];
     this.currentMatchArray = [];
     this.matchHistory = [];
+    this.lastRenderedPosition = 0;
+    this.previewPosition = 0;
+    this.readingPosition = 'top';
+    this.readingTopMargin = 140;
+    this.readingTopLines = 2;
+    this.highlightColor = [126, 231, 135];
+    this.followLag = 4;
+    this.speechBackendStatus = 'Web Speech API ready';
+    this.resumeRecognitionTimer = null;
+    this.waitingForVisibilityResume = false;
+    this.scrollAnimationFrame = null;
+    this.scrollFollowTarget = 0;
+    this.textBoxWidth = 84;
+    this.textLineHeight = 1.25;
+    this.fontWeight = 400;
+    this.textAlign = 'center';
+    this.dirtyPrompt = false;
+    this.pendingPromptDraft = '';
+    this.quickSettingsPreviouslyFocused = null;
     this.toDefaultSettings();
-    this.applySettings();
+    this.captureElements();
+    this.populateLanguageSelectors();
+    if (this.editorEl)
+      this.editorEl.value = this.text;
+    if (this.readingEditorEl)
+      this.readingEditorEl.value = this.text;
+    if (this.scriptTitleEl)
+      this.scriptTitleEl.value = this.getActiveTextTitle();
+    this.adaptText();
     this.speechRec = null;
-    document.getElementById('settings_container').addEventListener('mousemove', () => this.showPanel());
-    for (let i = 0; i < this.settings.length; i++)
-      document.getElementById(`s_${this.settings[i]}`).addEventListener('click', () => this.settingsClick(this.settings[i]));
-    document.getElementById('disable_block').addEventListener('click', () => this.editFinishedClick());
-    document.getElementById('prev').addEventListener('click', () => this.showPrevious());
-    document.getElementById('next').addEventListener('click', () => this.showNext());
-    document.getElementById('last').addEventListener('click', () => this.showLast());
+    this.initializeSpeechBackend();
+    this.bindAppEvents();
+    this.bindSettingsEvents();
+    this.designControlFields = [
+      'text-box-width',
+      'text-size-live',
+      'line-height-live',
+      'font-family-live',
+      'font-weight-live',
+      'text-align-live',
+      'highlight-color-live',
+      'text-color-live',
+    ];
+    for (let i = 0; i < this.designControlFields.length; i++) {
+      document.getElementById(this.designControlFields[i]).addEventListener('input', () => this.updateDesignControlsFromInputs());
+      document.getElementById(this.designControlFields[i]).addEventListener('change', () => this.updateDesignControlsFromInputs());
+    }
+    this.matchTuningFields = [
+      'match-short-threshold',
+      'match-medium-threshold',
+      'match-long-threshold',
+      'match-strong-threshold',
+      'match-skip-short-word-length',
+      'match-required-sequential',
+      'rejoin-enabled',
+      'rejoin-lookahead-window',
+      'rejoin-sequence-length',
+      'rejoin-confidence-threshold',
+      'rejoin-max-gap-in-speech',
+      'rejoin-cooldown',
+    ];
+    for (let i = 0; i < this.matchTuningFields.length; i++) {
+      const field = document.getElementById(this.matchTuningFields[i]);
+      if (!field)
+        continue;
+      const eventName = field.type === 'checkbox' ? 'change' : 'input';
+      field.addEventListener(eventName, () => this.updateMatchTuningFromInputs());
+    }
+    window.addEventListener('resize', () => this.applySettings());
+    document.addEventListener('visibilitychange', () => this.handleVisibilityChange());
+    window.addEventListener('focus', () => this.resumeRecognitionAfterInterruption());
+    this.bindLibraryEvents();
+    window.addEventListener('beforeunload', evt => this.handleBeforeUnload(evt));
+    this.applySettings();
+  }
+
+  captureElements() {
+    this.appViewTitleEl = document.getElementById('app-view-title');
+    this.activeScriptLabelEl = document.getElementById('active-script-label');
+    this.sidebarTitleEl = document.getElementById('sidebar-active-title');
+    this.sidebarPreviewEl = document.getElementById('sidebar-active-preview');
+    this.sidebarProgressEl = document.getElementById('sidebar-progress');
+    this.sidebarMicEl = document.getElementById('sidebar-mic');
+    this.readerMicStatusEl = document.getElementById('reader-mic-status');
+    this.readerLanguageStatusEl = document.getElementById('reader-language-status');
+    this.readerLanguageStatusOverlayEl = document.getElementById('reader-language-status-overlay');
+    this.readerFollowStatusEl = document.getElementById('reader-follow-status');
+    this.readerBackendStatusEl = document.getElementById('reader-backend-status');
+    this.readerProgressFillEl = document.getElementById('reader-progress-fill');
+    this.readerProgressPercentEl = document.getElementById('reader-progress-percent');
+    this.readerProgressMetaEl = document.getElementById('reader-progress-meta');
+    this.playToggleEl = document.getElementById('reader-play-toggle');
+    this.cleanToggleEl = document.getElementById('reader-clean-toggle');
+    this.readerMicStatusOverlayEl = document.getElementById('reader-mic-status-overlay');
+    this.scriptTitleEl = document.getElementById('script-title');
+    this.editorEl = document.getElementById('prompt-editor');
+    this.readingEditorEl = document.getElementById('text_editor');
+    this.scriptSearchEl = document.getElementById('script-search');
+    this.scriptListEl = document.getElementById('script-list');
+    this.scriptLibraryStatusEl = document.getElementById('script-library-status');
+    this.editorDirtyStateEl = document.getElementById('editor-dirty-state');
+    this.editorWordCountEl = document.getElementById('editor-word-count');
+    this.languageGroupEl = document.getElementById('language-group');
+    this.languageVariantEl = document.getElementById('language-variant');
+    this.showRecToggleEl = document.getElementById('showrec-toggle');
+    this.mirrorHToggleEl = document.getElementById('mirrorh-toggle');
+    this.mirrorVToggleEl = document.getElementById('mirrorv-toggle');
+    this.quickSettingsBackdropEl = document.getElementById('quick-settings-backdrop');
+    this.quickSettingsPanelEl = document.getElementById('quick-settings-panel');
+    this.quickTextSizeEl = document.getElementById('quick-text-size');
+    this.quickTextWidthEl = document.getElementById('quick-text-width');
+    this.quickLineHeightEl = document.getElementById('quick-line-height');
+    this.quickHighlightColorEl = document.getElementById('quick-highlight-color');
+    this.quickTextColorEl = document.getElementById('quick-text-color');
+    this.quickTextAlignEl = document.getElementById('quick-text-align');
+    this.messagesEl = document.getElementById('messages');
+    this.currentFile = (window.location.pathname.split('/').pop() || 'index.html').toLowerCase();
+  }
+
+  bindAppEvents() {
+    const readerRestartEl = document.getElementById('reader-restart');
+    const openQuickPanelTopEl = document.getElementById('reader-open-quick-panel');
+    const openQuickPanelBottomEl = document.getElementById('reader-open-quick-panel-bottom');
+    const quickSettingsCloseEl = document.getElementById('quick-settings-close');
+    const useInReaderEl = document.getElementById('use-script-in-reader');
+    const prevEl = document.getElementById('prev');
+    const nextEl = document.getElementById('next');
+    const lastEl = document.getElementById('last');
+
+    if (useInReaderEl)
+      useInReaderEl.addEventListener('click', () => this.openReaderWithCurrentScript());
+    if (readerRestartEl)
+      readerRestartEl.addEventListener('click', () => this.restartReading());
+    if (this.playToggleEl)
+      this.playToggleEl.addEventListener('click', () => this.togglePlayback());
+    if (this.cleanToggleEl)
+      this.cleanToggleEl.addEventListener('click', () => this.toggleCleanMode());
+    if (openQuickPanelTopEl)
+      openQuickPanelTopEl.addEventListener('click', evt => this.openQuickSettings(evt.currentTarget));
+    if (openQuickPanelBottomEl)
+      openQuickPanelBottomEl.addEventListener('click', evt => this.openQuickSettings(evt.currentTarget));
+    if (quickSettingsCloseEl)
+      quickSettingsCloseEl.addEventListener('click', () => this.closeQuickSettings());
+    if (this.quickSettingsBackdropEl)
+      this.quickSettingsBackdropEl.addEventListener('click', () => this.closeQuickSettings());
+    if (this.quickSettingsPanelEl)
+      this.quickSettingsPanelEl.addEventListener('keydown', evt => {
+        if (evt.key === 'Escape')
+          this.closeQuickSettings();
+      });
+    document.addEventListener('keydown', evt => {
+      if (evt.key === 'Escape' && this.quickSettingsPanelEl && this.quickSettingsPanelEl.classList.contains('is-open'))
+        this.closeQuickSettings();
+    });
+    if (prevEl)
+      prevEl.addEventListener('click', () => this.showPrevious());
+    if (nextEl)
+      nextEl.addEventListener('click', () => this.showNext());
+    if (lastEl)
+      lastEl.addEventListener('click', () => this.showLast());
+  }
+
+  bindLibraryEvents() {
+    const newScriptEl = document.getElementById('new-script');
+    const saveScriptEl = document.getElementById('save-script');
+    const deleteScriptEl = document.getElementById('delete-script');
+    const duplicateScriptEl = document.getElementById('duplicate-script');
+
+    if (newScriptEl)
+      newScriptEl.addEventListener('click', () => this.createNewScript());
+    if (saveScriptEl)
+      saveScriptEl.addEventListener('click', () => this.saveCurrentScript());
+    if (deleteScriptEl)
+      deleteScriptEl.addEventListener('click', () => this.deleteCurrentScript());
+    if (duplicateScriptEl)
+      duplicateScriptEl.addEventListener('click', () => this.duplicateCurrentScript());
+    if (this.scriptTitleEl)
+      this.scriptTitleEl.addEventListener('input', () => this.markPromptDirty());
+    if (this.scriptTitleEl)
+      this.scriptTitleEl.addEventListener('change', () => this.renameActiveScript());
+    if (this.editorEl) {
+      this.editorEl.addEventListener('input', () => this.syncPromptEditors());
+      this.editorEl.addEventListener('blur', () => this.persistDraftState());
+    }
+    if (this.scriptSearchEl) {
+      this.scriptSearchEl.addEventListener('input', evt => {
+        this.filteredQuery = evt.target.value || '';
+        this.renderTextLibrary();
+      });
+    }
+  }
+
+  bindSettingsEvents() {
+    const readingPositionEl = document.getElementById('reading-position');
+    const readingTopMarginEl = document.getElementById('reading-top-margin');
+    const readingTopLinesEl = document.getElementById('reading-top-lines');
+    const highlightColorEl = document.getElementById('highlight-color');
+    const followLagEl = document.getElementById('follow-lag');
+    const restoreDefaultsEl = document.getElementById('restore-defaults');
+
+    if (readingPositionEl) {
+      readingPositionEl.addEventListener('change', evt => {
+        this.readingPosition = evt.target.value;
+        this.applySettings();
+      });
+    }
+    if (readingTopMarginEl) {
+      readingTopMarginEl.addEventListener('input', evt => {
+        let value = parseInt(evt.target.value);
+        if (isNaN(value)) value = 0;
+        this.readingTopMargin = min(max(value, 0), 600);
+        evt.target.value = this.readingTopMargin;
+        this.applySettings();
+      });
+    }
+    if (readingTopLinesEl) {
+      readingTopLinesEl.addEventListener('input', evt => {
+        let value = parseInt(evt.target.value);
+        if (isNaN(value)) value = 2;
+        this.readingTopLines = min(max(value, 1), 6);
+        evt.target.value = this.readingTopLines;
+        this.applySettings();
+      });
+    }
+    if (highlightColorEl) {
+      highlightColorEl.addEventListener('input', evt => {
+        this.highlightColor = this.hexToRgb(evt.target.value);
+        this.applySettings();
+      });
+    }
+    if (followLagEl) {
+      followLagEl.addEventListener('input', evt => {
+        this.followLag = parseInt(evt.target.value);
+        this.applySettings();
+      });
+    }
+    if (this.languageGroupEl)
+      this.languageGroupEl.addEventListener('change', () => this.handleLanguageGroupChange());
+    if (this.languageVariantEl)
+      this.languageVariantEl.addEventListener('change', () => this.handleLanguageVariantChange());
+    if (this.showRecToggleEl) {
+      this.showRecToggleEl.addEventListener('change', evt => {
+        this.showrec = evt.target.checked;
+        this.applySettings();
+      });
+    }
+    if (this.mirrorHToggleEl) {
+      this.mirrorHToggleEl.addEventListener('change', evt => {
+        this.mirrorh = evt.target.checked;
+        this.applySettings();
+      });
+    }
+    if (this.mirrorVToggleEl) {
+      this.mirrorVToggleEl.addEventListener('change', evt => {
+        this.mirrorv = evt.target.checked;
+        this.applySettings();
+      });
+    }
+    if (restoreDefaultsEl)
+      restoreDefaultsEl.addEventListener('click', () => this.restoreDefaultSettings());
+    if (this.quickTextSizeEl) {
+      this.quickTextSizeEl.addEventListener('input', evt => {
+        this.size = parseInt(evt.target.value);
+        this.applySettings();
+      });
+    }
+    if (this.quickTextWidthEl) {
+      this.quickTextWidthEl.addEventListener('input', evt => {
+        this.textBoxWidth = parseInt(evt.target.value);
+        this.applySettings();
+      });
+    }
+    if (this.quickLineHeightEl) {
+      this.quickLineHeightEl.addEventListener('input', evt => {
+        this.textLineHeight = parseInt(evt.target.value) / 100;
+        this.applySettings();
+      });
+    }
+    if (this.quickHighlightColorEl) {
+      this.quickHighlightColorEl.addEventListener('input', evt => {
+        this.highlightColor = this.hexToRgb(evt.target.value);
+        this.applySettings();
+      });
+    }
+    if (this.quickTextColorEl) {
+      this.quickTextColorEl.addEventListener('input', evt => {
+        this.fg = this.hexToRgb(evt.target.value);
+        this.applySettings();
+      });
+    }
+    if (this.quickTextAlignEl) {
+      this.quickTextAlignEl.addEventListener('change', evt => {
+        this.textAlign = evt.target.value;
+        this.applySettings();
+      });
+    }
+  }
+
+  hasReaderSurface() {
+    return this.readingEditorEl !== null && document.getElementById('play_text') !== null;
+  }
+
+  hasPromptEditor() {
+    return this.editorEl !== null && this.scriptTitleEl !== null;
+  }
+
+  hasSettingsPanel() {
+    return this.languageGroupEl !== null;
+  }
+
+  readStorage(key) {
+    try {
+      return JSON.parse(localStorage.getItem(key));
+    } catch (error) {
+      return null;
+    }
+  }
+
+  writeStorage(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (error) {}
+  }
+
+  startStopwatchSafely() {
+    if (typeof startStopwatch === 'function')
+      startStopwatch();
+  }
+
+  pauseStopwatchSafely() {
+    if (typeof pauseStopwatch === 'function')
+      pauseStopwatch();
+  }
+
+  resetStopwatchSafely() {
+    if (typeof resetStopwatch === 'function')
+      resetStopwatch();
   }
 
   showPrevious() {
@@ -76,31 +418,47 @@ class Teleprompter {
     let playText = '';
     idx = 0;
     let recText2 = [...this.recText];
-    if (recText2[recText2.length - 1].idx != this.splitText.length - 1)
-      recText2.push({ idx: this.splitText.length - 1 });
-    this.numWordSpans = recText2.length;
-    for (let i = 0; i < this.numWordSpans; i++) {
-      playText += `<span id="word_${i}">`;
-      for (; idx <= (i + 1 < recText2.length ? recText2[i + 1].idx - 1 : recText2[i].idx); idx++)
-        playText += escapeHtml(this.splitText[idx]);
-      playText += '</span>&#8203;';
+    if (recText2.length === 0) {
+      playText = '<span id="word_0"></span>&#8203;';
+      this.numWordSpans = 1;
+    } else {
+      if (recText2[recText2.length - 1].idx != this.splitText.length - 1)
+        recText2.push({ idx: this.splitText.length - 1 });
+      this.numWordSpans = recText2.length;
+      for (let i = 0; i < this.numWordSpans; i++) {
+        playText += `<span id="word_${i}">`;
+        for (; idx <= (i + 1 < recText2.length ? recText2[i + 1].idx - 1 : recText2[i].idx); idx++)
+          playText += escapeHtml(this.splitText[idx]);
+        playText += '</span>&#8203;';
+      }
     }
-    document.getElementById('play_text').innerHTML = playText;
-    for (let i = 0; i < this.numWordSpans; i++)
-      document.getElementById(`word_${i}`).addEventListener('click', () => this.wordClick(i));
+    const playTextEl = document.getElementById('play_text');
+    if (playTextEl !== null) {
+      playTextEl.innerHTML = playText;
+      for (let i = 0; i < this.numWordSpans; i++) {
+        const wordEl = document.getElementById(`word_${i}`);
+        if (wordEl !== null)
+          wordEl.addEventListener('click', () => this.wordClick(i));
+      }
+    }
     this.currentPosition = 0;
   }
 
   settingsClick(setting) {
     if (setting == 'play') {
       if (!this.edit) {
-        if (this.play) { this.pause();pauseStopwatch();}
-        else {this.start();startStopwatch();}
+        if (this.play) {
+          this.pause();
+          this.pauseStopwatchSafely();
+        } else {
+          this.start();
+          this.startStopwatchSafely();
+        }
       }
       this.applySettings();
     } else if (setting == 'restart') {
       this.stop();
-      resetStopwatch();
+      this.resetStopwatchSafely();
       this.applySettings();
     } else if (setting == 'edit') {
       this.stop();
@@ -164,6 +522,8 @@ class Teleprompter {
   wordClick(numWord) {
     if (this.play) {
       this.currentPosition = min(numWord, this.recText.length);
+      this.lastRenderedPosition = this.currentPosition;
+      this.previewPosition = this.currentPosition;
       if (this.speechRec !== null) this.speechRec.reset(this.lang);
       this.speechPosition = 0;
       this.currentRecording = [];
@@ -177,31 +537,120 @@ class Teleprompter {
   }
 
   start() {
-    if (this.speechRec !== null) this.speechRec.stop();
-    this.play = true;
-    this.speechPosition = 0;
-    this.currentRecording = [];
-    this.currentMatchArray = [];
-    this.speechRec = new SpeechRecognizer((a, b, c) => this.speechResult(a, b, c), this.lang);
-    this.speechRec.start();
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+          stream.getTracks().forEach(track => track.stop());
+          this.startRecognition();
+        })
+        .catch(() => {
+          this.play = false;
+          this.micStatus = 'Microphone blocked';
+          this.addMessage('error', 'Could not access the microphone. Check browser site permissions and Windows input device settings.');
+          this.applySettings();
+        });
+    } else {
+      this.startRecognition();
+    }
   }
 
-  stop() {
+  startRecognition(resetTracking = true) {
+    if (this.resumeRecognitionTimer !== null) {
+      window.clearTimeout(this.resumeRecognitionTimer);
+      this.resumeRecognitionTimer = null;
+    }
     if (this.speechRec !== null) this.speechRec.stop();
+    this.play = true;
+    this.sessionCompleted = false;
+    this.showrec = true;
+    this.lastRenderedPosition = this.currentPosition;
+    this.previewPosition = this.currentPosition;
+    if (resetTracking) {
+      this.speechPosition = 0;
+      this.currentRecording = [];
+      this.currentMatchArray = [];
+    }
+    this.waitingForVisibilityResume = false;
+    this.micStatus = `Starting ${this.getSpeechBackendLabel()} (${this.lang})`;
+    this.initializeSpeechBackend();
+    this.speechRec.start();
+    this.applySettings();
+  }
+
+  stop(resetPosition = true) {
+    if (this.resumeRecognitionTimer !== null) {
+      window.clearTimeout(this.resumeRecognitionTimer);
+      this.resumeRecognitionTimer = null;
+    }
+    if (this.speechRec !== null) this.speechRec.stop();
+    this.stopSmoothScroll();
     this.play = false;
-    this.currentPosition = 0;
+    this.waitingForVisibilityResume = false;
+    if (resetPosition) {
+      this.currentPosition = 0;
+      this.lastRenderedPosition = 0;
+      this.previewPosition = 0;
+      this.sessionCompleted = false;
+      this.micStatus = 'Stopped';
+      this.speechBackendStatus = `${this.getSpeechBackendLabel()} stopped`;
+    } else {
+      this.currentPosition = this.recText.length;
+      this.lastRenderedPosition = this.currentPosition;
+      this.previewPosition = this.currentPosition;
+      this.sessionCompleted = true;
+      this.micStatus = 'Sesión completada';
+      this.speechBackendStatus = `${this.getSpeechBackendLabel()} completed`;
+    }
+    this.pauseStopwatchSafely();
   }
 
   pause() {
+    if (this.resumeRecognitionTimer !== null) {
+      window.clearTimeout(this.resumeRecognitionTimer);
+      this.resumeRecognitionTimer = null;
+    }
     if (this.speechRec !== null) this.speechRec.stop();
+    this.stopSmoothScroll();
     this.play = false;
+    this.waitingForVisibilityResume = false;
+    this.lastRenderedPosition = this.currentPosition;
+    this.previewPosition = this.currentPosition;
+    this.micStatus = 'Paused';
+    this.speechBackendStatus = `${this.getSpeechBackendLabel()} paused`;
+    this.pauseStopwatchSafely();
   }
 
   speechResult(type, finalRes, interimRes) {
-    if (type == 'error') {
+    if (type == 'start') {
+      this.micStatus = `Listening (${this.lang})`;
+      this.speechBackendStatus = `${this.getSpeechBackendLabel()} active`;
+      this.applySettings();
+    } else if (type == 'status') {
+      this.micStatus = interimRes;
+      this.speechBackendStatus = interimRes;
+      this.applySettings();
+    } else if (type == 'error') {
+      this.micStatus = interimRes;
+      this.speechBackendStatus = interimRes;
       this.addMessage('error', interimRes);
       if (this.speechRec !== null) this.speechRec.stop();
       this.applySettings();
+    } else if (type == 'end') {
+      // Browsers can stop speech recognition after a short silence.
+      // Keep listening while the teleprompter is still running.
+        if (this.play && this.currentPosition < this.recText.length) {
+          if (document.hidden) {
+            this.waitingForVisibilityResume = true;
+            this.micStatus = 'Backgrounded, waiting to resume';
+            this.speechBackendStatus = 'Backgrounded, waiting to resume';
+            this.applySettings();
+          } else {
+            this.micStatus = 'Reconnecting microphone...';
+            this.speechBackendStatus = 'Reconnecting microphone...';
+            this.applySettings();
+            this.resumeRecognitionAfterInterruption(150);
+          }
+        }
     } else if (type == 'result') {
       finalRes = splitResult(finalRes);
       interimRes = splitResult(interimRes);
@@ -209,11 +658,22 @@ class Teleprompter {
       for (let i = 0; i < interimRes.length; i++)
         this.currentRecording.push(interimRes[i]);
       let match;
-      [this.currentPosition, this.speechPosition, this.currentMatchArray, match] =
-        matchText(this.recText, this.currentPosition, this.currentRecording, this.speechPosition, this.currentMatchArray);
+      const previousPosition = this.currentPosition;
+      [this.previewPosition, this.speechPosition, this.currentMatchArray, match] =
+        matchText(this.recText, previousPosition, this.currentRecording, this.speechPosition, this.currentMatchArray);
+      this.currentPosition = getConfirmedPosition(
+        this.recText,
+        previousPosition,
+        this.currentRecording,
+        this.speechPosition,
+        this.currentMatchArray
+      );
+      this.previewPosition = this.currentPosition;
       this.matchHistory.push(match);
+      this.micStatus = `Heard ${this.currentRecording.length} word${this.currentRecording.length === 1 ? '' : 's'} (${this.lang})`;
+      this.speechBackendStatus = `${this.getSpeechBackendLabel()} returned text`;
       if (this.currentPosition >= this.recText.length)
-        this.stop();
+        this.stop(false);
       this.applySettings();
     }
   }
@@ -253,6 +713,8 @@ class Teleprompter {
         secondaryIdx = parseInt(document.getElementById(`editorref_${setting}`).value);
       secondaryIdx = min(this.langValues[primaryIdx].length - 1, secondaryIdx);
       this.lang = this.langValues[primaryIdx][secondaryIdx][0];
+      if (this.speechRec !== null)
+        this.speechRec.reset(this.lang);
       this.adaptLanguageSelector();
     } else if (typeof this[setting] === 'number') {
       let value = parseInt(document.getElementById(`editor_${setting}`).value);
@@ -283,46 +745,79 @@ class Teleprompter {
   }
 
   editFinishedClick() {
-    document.body.removeChild(document.getElementById('editor_div'));
+    this.text = document.getElementById('text_editor').value;
+    this.updateActiveScriptText(this.text);
+    this.adaptText();
+    const editor = document.getElementById('editor_div');
+    if (editor !== null)
+      document.body.removeChild(editor);
     document.getElementById('disable_block').style.display = 'none';
     this.applySettings();
   }
 
   toFactorySettings() {
-    this.lang = 'en-US';
-    this.bg = [64, 64, 64];
+    this.lang = 'es-AR';
+    this.bg = [13, 17, 23];
     this.fg = [242, 242, 242];
     this.size = 120;
-    this.font = 'Arial';
-    this.margin = 100;
+    this.font = "'Instrument Sans', sans-serif";
+    this.margin = 56;
     this.mirrorv = false;
     this.mirrorh = false;
-    this.showrec = false;
+    this.showrec = true;
+    this.readingPosition = 'top';
+    this.readingTopMargin = 140;
+    this.readingTopLines = 2;
+    this.highlightColor = [126, 231, 135];
+    this.followLag = 4;
+    this.textBoxWidth = 84;
+    this.textLineHeight = 1.25;
+    this.fontWeight = 400;
+    this.textAlign = 'center';
+    this.matchTuning = this.getDefaultMatchTuning();
+    this.speechBackendStatus = 'Web Speech API ready';
   }
 
   toDefaultSettings() {
     this.toFactorySettings();
-    if (localStorage.getItem('lang') !== null)
-      this.lang = JSON.parse(localStorage.getItem('lang'));
-    if (localStorage.getItem('bg') !== null)
-      this.bg = JSON.parse(localStorage.getItem('bg'));
-    if (localStorage.getItem('fg') !== null)
-      this.fg = JSON.parse(localStorage.getItem('fg'));
-    if (localStorage.getItem('size') !== null)
-      this.size = JSON.parse(localStorage.getItem('size'));
-    if (localStorage.getItem('font') !== null)
-      this.font = JSON.parse(localStorage.getItem('font'));
-    if (localStorage.getItem('margin') !== null)
-      this.margin = JSON.parse(localStorage.getItem('margin'));
-    if (localStorage.getItem('mirrorv') !== null)
-      this.mirrorv = JSON.parse(localStorage.getItem('mirrorv'));
-    if (localStorage.getItem('mirrorh') !== null)
-      this.mirrorh = JSON.parse(localStorage.getItem('mirrorh'));
-    if (localStorage.getItem('showrec') !== null)
-      this.showrec = JSON.parse(localStorage.getItem('showrec'));
+    this.loadTextLibrary();
+    const storedView = this.readStorage(this.storageKeys.appView);
+    const storedSettings = this.readStorage(this.storageKeys.settings);
+    const storedDraft = this.readStorage(this.storageKeys.dirtyDraft);
+    if (!document.body.dataset.entryView && typeof storedView === 'string')
+      this.appView = storedView;
+    if (storedSettings && typeof storedSettings === 'object') {
+      this.lang = storedSettings.lang || this.lang;
+      this.bg = storedSettings.bg || this.bg;
+      this.fg = storedSettings.fg || this.fg;
+      this.size = storedSettings.size || this.size;
+      this.font = storedSettings.font || this.font;
+      this.margin = storedSettings.margin || this.margin;
+      this.mirrorv = typeof storedSettings.mirrorv === 'boolean' ? storedSettings.mirrorv : this.mirrorv;
+      this.mirrorh = typeof storedSettings.mirrorh === 'boolean' ? storedSettings.mirrorh : this.mirrorh;
+      this.showrec = typeof storedSettings.showrec === 'boolean' ? storedSettings.showrec : this.showrec;
+      this.readingPosition = storedSettings.readingPosition || this.readingPosition;
+      this.readingTopMargin = storedSettings.readingTopMargin || this.readingTopMargin;
+      this.readingTopLines = storedSettings.readingTopLines || this.readingTopLines;
+      this.highlightColor = storedSettings.highlightColor || this.highlightColor;
+      this.followLag = storedSettings.followLag || this.followLag;
+      this.textBoxWidth = storedSettings.textBoxWidth || this.textBoxWidth;
+      this.textLineHeight = storedSettings.textLineHeight || this.textLineHeight;
+      this.fontWeight = storedSettings.fontWeight || this.fontWeight;
+      this.textAlign = storedSettings.textAlign || this.textAlign;
+      this.matchTuning = this.normalizeMatchTuning(storedSettings.matchTuning);
+    }
+    if (storedDraft && typeof storedDraft === 'object') {
+      this.dirtyPrompt = !!storedDraft.isDirty;
+      this.pendingPromptDraft = typeof storedDraft.text === 'string' ? storedDraft.text : '';
+    }
   }
 
   applySettings() {
+    localStorage.setItem('text', JSON.stringify(this.text));
+    localStorage.setItem('teleprompterTextLibrary', JSON.stringify(this.textLibrary));
+    localStorage.setItem('teleprompterActiveTextId', JSON.stringify(this.activeTextId));
+    localStorage.setItem('teleprompterAppView', JSON.stringify(this.appView));
     localStorage.setItem('lang', JSON.stringify(this.lang));
     localStorage.setItem('bg', JSON.stringify(this.bg));
     localStorage.setItem('fg', JSON.stringify(this.fg));
@@ -332,25 +827,89 @@ class Teleprompter {
     localStorage.setItem('mirrorv', JSON.stringify(this.mirrorv));
     localStorage.setItem('mirrorh', JSON.stringify(this.mirrorh));
     localStorage.setItem('showrec', JSON.stringify(this.showrec));
+    localStorage.setItem('readingPosition', JSON.stringify(this.readingPosition));
+    localStorage.setItem('readingTopMargin', JSON.stringify(this.readingTopMargin));
+    localStorage.setItem('readingTopLines', JSON.stringify(this.readingTopLines));
+    localStorage.setItem('highlightColor', JSON.stringify(this.highlightColor));
+    localStorage.setItem('followLag', JSON.stringify(this.followLag));
+    localStorage.setItem('textBoxWidth', JSON.stringify(this.textBoxWidth));
+    localStorage.setItem('textLineHeight', JSON.stringify(this.textLineHeight));
+    localStorage.setItem('fontWeight', JSON.stringify(this.fontWeight));
+    localStorage.setItem('textAlign', JSON.stringify(this.textAlign));
+    localStorage.setItem('matchTuning', JSON.stringify(this.matchTuning));
+    window.prompterMatchTuning = this.matchTuning;
+    if (document.activeElement !== this.scriptTitleEl)
+      this.scriptTitleEl.value = this.getActiveTextTitle();
+    if (document.activeElement !== this.editorEl && this.editorEl.value !== this.text)
+      this.editorEl.value = this.text;
+    if (this.readingEditorEl.value !== this.text)
+      this.readingEditorEl.value = this.text;
+    document.getElementById('script-library-status').textContent = this.getLibraryStatus();
+    this.renderTextLibrary();
+    document.getElementById('mic_status').textContent = this.micStatus;
+    document.getElementById('reading-position').value = this.readingPosition;
+    document.getElementById('reading-top-margin').value = this.readingTopMargin;
+    document.getElementById('reading-top-margin-value').textContent = `${this.readingTopMargin}px`;
+    document.getElementById('reading-top-lines').value = this.readingTopLines;
+    document.getElementById('reading-top-lines-value').textContent = `${this.readingTopLines} línea${this.readingTopLines === 1 ? '' : 's'}`;
+    document.getElementById('highlight-color').value = this.rgbToHex(this.highlightColor);
+    document.getElementById('follow-lag').value = this.followLag;
+    document.getElementById('follow-lag-value').textContent = `${this.followLag} palabra${this.followLag === 1 ? '' : 's'}`;
+    this.syncMatchTuningInputs();
+    this.syncDesignControlInputs();
+    this.syncRouteUi();
+    this.syncLanguageSelectors();
+    this.showRecToggleEl.checked = this.showrec;
+    this.mirrorHToggleEl.checked = this.mirrorh;
+    this.mirrorVToggleEl.checked = this.mirrorv;
+    const progress = this.getReaderProgress();
+    this.readerProgressFillEl.style.width = `${progress.percent}%`;
+    this.readerProgressPercentEl.textContent = `${progress.percent}%`;
+    this.readerProgressMetaEl.textContent = `${progress.current} de ${progress.total} palabras`;
+    this.sidebarProgressEl.textContent = `${progress.percent}%`;
+    this.readerMicStatusEl.textContent = this.micStatus;
+    this.readerLanguageStatusEl.textContent = this.lang;
+    this.readerFollowStatusEl.textContent = `${this.followLag} palabra${this.followLag === 1 ? '' : 's'}`;
+    this.readerBackendStatusEl.textContent = this.speechBackendStatus;
+    this.sidebarMicEl.textContent = this.getSessionStatusLabel();
+    this.activeScriptLabelEl.textContent = this.getActiveTextTitle() || 'Sin título';
+    this.sidebarTitleEl.textContent = this.getActiveTextTitle() || 'Sin título';
+    this.sidebarPreviewEl.textContent = this.getScriptPreview(this.text);
+    this.playToggleEl.innerHTML = this.play
+      ? '<i class="fa-solid fa-pause" aria-hidden="true"></i>'
+      : '<i class="fa-solid fa-play" aria-hidden="true"></i>';
+    this.cleanToggleEl.innerHTML = this.cleanMode
+      ? '<i class="fa-solid fa-compress" aria-hidden="true"></i>'
+      : '<i class="fa-solid fa-expand" aria-hidden="true"></i>';
+    this.quickTextSizeEl.value = `${this.size}`;
+    this.quickTextWidthEl.value = `${this.textBoxWidth}`;
+    this.quickLineHeightEl.value = `${Math.round(this.textLineHeight * 100)}`;
+    this.quickHighlightColorEl.value = this.rgbToHex(this.highlightColor);
+    this.quickTextColorEl.value = this.rgbToHex(this.fg);
+    this.quickTextAlignEl.value = this.textAlign;
+    document.body.classList.toggle('clean-reader', this.cleanMode);
     if (!this.play && !this.edit) {
       if (this.lang.search(/^en-(AU|CA|IN|KE|TZ|GH|NZ|NG|ZA|PH|GB|US)$/) != -1) {
         if (this.text == DEFAULT_TEXT_DE || this.text == DEFAULT_TEXT_FR) {
           this.text = DEFAULT_TEXT_EN;
-          document.getElementById('text_editor').value = this.text;
+          this.editorEl.value = this.text;
+          this.readingEditorEl.value = this.text;
           this.adaptText();
         }
       }
       if (this.lang == 'de-DE') {
         if (this.text == DEFAULT_TEXT_EN || this.text == DEFAULT_TEXT_FR) {
           this.text = DEFAULT_TEXT_DE;
-          document.getElementById('text_editor').value = this.text;
+          this.editorEl.value = this.text;
+          this.readingEditorEl.value = this.text;
           this.adaptText();
         }
       }
       if (this.lang == 'fr-FR') {
         if (this.text == DEFAULT_TEXT_DE || this.text == DEFAULT_TEXT_EN) {
           this.text = DEFAULT_TEXT_FR;
-          document.getElementById('text_editor').value = this.text;
+          this.editorEl.value = this.text;
+          this.readingEditorEl.value = this.text;
           this.adaptText();
         }
       }
@@ -370,32 +929,6 @@ class Teleprompter {
       }
     }
     if ((bgDark && !fgDark) || (!bgDark && fgDark)) this.removeColorWarning();
-    const iconDefault = bgDark ? 'white' : 'black';
-    const iconAlternative = bgDark ? 'black' : 'white';
-    document.getElementById('settings_container').style.color = iconDefault;
-    for (let i = 0; i < this.settings.length; i++) {
-      let icon = this.settings[i]; let color = iconDefault;
-      if (this.settings[i] == 'play') {
-        if (this.play) {
-          icon = 'pause';
-          document.getElementById('s_play_text').innerHTML = '';
-        } else if (this.currentPosition > 0)
-          document.getElementById('s_play_text').innerHTML = '';
-        else
-          document.getElementById('s_play_text').innerHTML = '';
-      }
-      if (typeof this[this.settings[i]] === 'boolean') {
-        if (this[this.settings[i]]) {
-          color = iconAlternative;
-          document.getElementById(`s_${this.settings[i]}_icon`).style.backgroundColor = iconDefault;
-        } else
-          document.getElementById(`s_${this.settings[i]}_icon`).style.backgroundColor = 'transparent';
-      }
-      document.getElementById(`s_${this.settings[i]}_img`).src = `icons/${icon}-${color}.svg`;
-    }
-    document.getElementById('prev').src = `icons/previous-${iconDefault}.svg`;
-    document.getElementById('next').src = `icons/next-${iconDefault}.svg`;
-    document.getElementById('last').src = `icons/last-${iconDefault}.svg`;
     if (this.mirrorv && this.mirrorh)
       document.getElementById('play_div').style.transform = 'scale(-1, -1)';
     else if (this.mirrorv)
@@ -405,24 +938,46 @@ class Teleprompter {
     else
       document.getElementById('play_div').style.transform = 'none';
     document.body.style.backgroundColor = arrToColor(...this.bg);
-    document.getElementById('settings_container').style.backgroundColor = arrToColor(...this.bg, 0.8);
     document.getElementById('disable_block').style.backgroundColor = arrToColor(...this.bg, 0.8);
-    document.body.style.fontFamily = this.font;
     document.getElementById('play_text').style.color = arrToColor(...this.fg);
+    document.getElementById('play_text').style.fontFamily = this.font;
+    document.getElementById('play_text').style.lineHeight = `${this.textLineHeight}`;
+    document.getElementById('play_text').style.fontWeight = `${this.fontWeight}`;
+    document.getElementById('play_text').style.textAlign = this.textAlign;
+    this.readingEditorEl.style.fontFamily = this.font;
+    this.readingEditorEl.style.lineHeight = `${this.textLineHeight}`;
+    this.readingEditorEl.style.fontWeight = `${this.fontWeight}`;
+    this.readingEditorEl.style.textAlign = this.textAlign;
+    this.readingEditorEl.style.color = arrToColor(...this.fg);
+    document.getElementById('play_text').style.display = 'block';
+    document.getElementById('play_text').style.width = `${this.textBoxWidth}%`;
+    document.getElementById('play_text').style.maxWidth = `${this.textBoxWidth}%`;
+    document.getElementById('play_text').style.marginLeft = 'auto';
+    document.getElementById('play_text').style.marginRight = 'auto';
+    this.readingEditorEl.style.width = `${this.textBoxWidth}%`;
+    this.readingEditorEl.style.maxWidth = `${this.textBoxWidth}%`;
+    this.readingEditorEl.style.marginLeft = 'auto';
+    this.readingEditorEl.style.marginRight = 'auto';
     for (let i = 0; i < this.numWordSpans; i++) {
+      const wordElem = document.getElementById(`word_${i}`);
+      wordElem.style.fontSize = `${this.size}px`;
+      wordElem.style.lineHeight = `${this.textLineHeight}`;
+      wordElem.style.fontWeight = `${this.fontWeight}`;
+      wordElem.style.fontFamily = this.font;
       if (this.play) {
-        const d = i - this.currentPosition;
-        if (d <= 10)
-          document.getElementById(`word_${i}`).style.fontSize = `${this.size}px`;
-        else
-          document.getElementById(`word_${i}`).style.fontSize = `${Math.round(this.size * (0.4 + 0.6 * Math.exp(-0.1 * (d - 10))))}px`;
-        if (this.currentPosition <= i)
-          document.getElementById(`word_${i}`).style.opacity = '1';
-        else
-          document.getElementById(`word_${i}`).style.opacity = '0.3';
+        if (i < this.currentPosition) {
+          wordElem.style.opacity = '1';
+          wordElem.style.color = arrToColor(...this.highlightColor);
+        } else if (i < this.previewPosition) {
+          wordElem.style.opacity = '1';
+          wordElem.style.color = arrToColor(...this.highlightColor, 0.4);
+        } else {
+          wordElem.style.opacity = '1';
+          wordElem.style.color = arrToColor(...this.fg);
+        }
       } else {
-        document.getElementById(`word_${i}`).style.fontSize = `${this.size}px`;
-        document.getElementById(`word_${i}`).style.opacity = '1';
+        wordElem.style.opacity = '1';
+        wordElem.style.color = arrToColor(...this.fg);
       }
     }
     document.getElementById('play_div').style.paddingLeft = `${this.margin}px`;
@@ -431,70 +986,246 @@ class Teleprompter {
     document.getElementById('edit_text_div').style.paddingRight = `${this.margin}px`;
     if (this.showrec) {
       document.getElementById('rec_text').style.display = 'flex';
-      document.getElementById('rec_text').style.backgroundColor = arrToColor(...this.bg, 0.8);
-      document.getElementById('rec_text').style.color = iconDefault;
       let upperText = [];
       let lowerText = [];
       if (this.showMatchIdx >= 0 && this.showMatchIdx < this.matchHistory.length) {
         [upperText, lowerText] = this.matchHistory[this.showMatchIdx];
       } else {
-        let subtract = min(this.currentPosition, min(this.speechPosition, 15));
-        let startIdx = this.currentPosition - subtract;
+        const promptSubtract = min(this.currentPosition, 15);
+        let startIdx = this.currentPosition - promptSubtract;
         let endIdx = min(this.recText.length, this.currentPosition + 10);
         for (let i = startIdx; i < endIdx; i++)
           upperText.push(this.recText[i].word);
-        startIdx = this.speechPosition - subtract;
-        endIdx = min(this.currentRecording.length, this.speechPosition + 10);
+        const recordingTail = min(this.currentRecording.length, 10);
+        startIdx = max(0, this.currentRecording.length - recordingTail);
+        endIdx = this.currentRecording.length;
         for (let i = startIdx; i < endIdx; i++)
           lowerText.push(this.currentRecording[i]);
       }
-      if (upperText.length > 0 && lowerText.length > 0) {
-        document.getElementById('disconnected_texts').style.display = 'none';
-        document.getElementById('connected_texts').style.display = 'inline';
-        let text = '';
-        for (let i = 0; i < max(upperText.length, lowerText.length); i++) {
-          let upper = '&nbsp;';
-          let lower = '&nbsp;';
-          if (i < upperText.length) upper = escapeHtml(upperText[i]);
-          if (i < lowerText.length) lower = escapeHtml(lowerText[i]);
-          let style_add = '';
-          if (i < upperText.length && i < lowerText.length) {
-            const score = cmpScore(upperText[i], lowerText[i]);
-            if (score > 0)
-              style_add = ` style="background-color:${arrToColor(0, 100, 0, 0.25 * score)};"`;
-          }
-          text += `<span class="word_match"${style_add}>${upper}<br />${lower}</span>`;
-        }
-        document.getElementById('connected_texts').innerHTML = text;
-      } else {
-        document.getElementById('disconnected_texts').style.display = 'inline';
-        document.getElementById('connected_texts').style.display = 'none';
-        let text = upperText.map(val => escapeHtml(val)).join(' ');
-        if (text == '') text = 'Waiting for you to start&hellip;';
-        document.getElementById('looking_for').innerHTML = text;
-        text = lowerText.map(val => escapeHtml(val)).join(' ');
-        if (text == '') text = 'Waiting for you to start&hellip;';
-        document.getElementById('recorded').innerHTML = text;
-      }
+      document.getElementById('disconnected_texts').style.display = 'inline';
+      document.getElementById('connected_texts').style.display = 'none';
+      let text = upperText.map(val => escapeHtml(val)).join(' ');
+      if (text == '') text = 'Esperando que inicies&hellip;';
+      document.getElementById('looking_for').innerHTML = text;
+      text = lowerText.map(val => escapeHtml(val)).join(' ');
+      if (text == '') text = 'Esperando que inicies&hellip;';
+      document.getElementById('recorded').innerHTML = text;
     } else
       document.getElementById('rec_text').style.display = 'none';
     if (this.edit) {
       document.getElementById('play_div').style.display = 'none';
       document.getElementById('edit_text_div').style.display = 'block';
+      this.stopSmoothScroll();
     } else {
       document.getElementById('play_div').style.display = 'block';
       document.getElementById('edit_text_div').style.display = 'none';
       if (this.play) {
-        let scrollToElem = document.getElementById(`word_${this.currentPosition}`);
-        let top = scrollToElem.getBoundingClientRect().top;
-        let i = this.currentPosition;
-        while (++i < this.numWordSpans) {
-          scrollToElem = document.getElementById(`word_${i}`);
-          if (Math.abs(scrollToElem.getBoundingClientRect().top - top) >= this.size)
-            break;
-        }
-        scrollToElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const playDiv = document.getElementById('play_div');
+        const visiblePosition = max(this.currentPosition, this.previewPosition);
+        const followPosition = max(0, visiblePosition - this.followLag);
+        const lineAnchor = this.getLineAnchor(followPosition);
+        const targetTop = this.getScrollTargetTop(playDiv, lineAnchor);
+        this.smoothScrollPlayDiv(playDiv, targetTop);
+      } else {
+        this.stopSmoothScroll();
       }
+    }
+    this.lastRenderedPosition = max(this.currentPosition, this.previewPosition);
+  }
+
+  getReaderProgress() {
+    const total = this.recText ? this.recText.length : 0;
+    const current = min(this.currentPosition, total);
+    const percent = total === 0 ? 0 : Math.round((current / total) * 100);
+    return { current, total, percent };
+  }
+
+  getSessionStatusLabel() {
+    if (this.play)
+      return 'Escuchando';
+    if (this.sessionCompleted)
+      return 'Finalizado';
+    if (this.currentPosition > 0)
+      return 'Pausado';
+    return 'Listo';
+  }
+
+  syncPromptEditors() {
+    this.text = this.editorEl.value;
+    this.readingEditorEl.value = this.text;
+    this.updateActiveScriptText(this.text);
+    this.adaptText();
+    this.applySettings();
+  }
+
+  togglePlayback() {
+    if (this.play) {
+      this.pause();
+    } else {
+      if (this.sessionCompleted || this.currentPosition >= this.recText.length) {
+        this.currentPosition = 0;
+        this.lastRenderedPosition = 0;
+        this.previewPosition = 0;
+        this.sessionCompleted = false;
+        this.resetStopwatchSafely();
+      }
+      this.start();
+      this.startStopwatchSafely();
+    }
+    this.applySettings();
+  }
+
+  restartReading() {
+    this.stop();
+    this.resetStopwatchSafely();
+    this.applySettings();
+  }
+
+  toggleCleanMode() {
+    this.cleanMode = !this.cleanMode;
+    document.body.classList.toggle('clean-reader', this.cleanMode);
+    this.applySettings();
+  }
+
+  openQuickSettings() {
+    this.quickSettingsBackdropEl.hidden = false;
+    this.quickSettingsPanelEl.classList.add('is-open');
+    this.quickSettingsPanelEl.setAttribute('aria-hidden', 'false');
+  }
+
+  closeQuickSettings() {
+    this.quickSettingsBackdropEl.hidden = true;
+    this.quickSettingsPanelEl.classList.remove('is-open');
+    this.quickSettingsPanelEl.setAttribute('aria-hidden', 'true');
+  }
+
+  setView(view, navigate = true) {
+    this.appView = view;
+    this.applySettings();
+  }
+
+  syncRouteUi() {
+    const navTargets = document.querySelectorAll('[data-view]');
+    for (let i = 0; i < navTargets.length; i++)
+      navTargets[i].classList.toggle('is-active', navTargets[i].dataset.view === this.appView);
+  }
+
+  populateLanguageSelectors() {
+    this.languageGroupEl.innerHTML = this.langValues
+      .map((group, idx) => `<option value="${idx}">${group[0]}</option>`)
+      .join('');
+  }
+
+  syncLanguageSelectors() {
+    let groupIndex = 0;
+    let variantIndex = 1;
+    for (let i = 0; i < this.langValues.length; i++) {
+      for (let k = 1; k < this.langValues[i].length; k++) {
+        if (this.langValues[i][k][0] === this.lang) {
+          groupIndex = i;
+          variantIndex = k;
+          break;
+        }
+      }
+    }
+    this.languageGroupEl.value = `${groupIndex}`;
+    this.languageVariantEl.innerHTML = this.langValues[groupIndex]
+      .slice(1)
+      .map((variant, idx) => `<option value="${idx + 1}">${variant[1] || variant[0]}</option>`)
+      .join('');
+    this.languageVariantEl.value = `${variantIndex}`;
+  }
+
+  handleLanguageGroupChange() {
+    const primaryIdx = parseInt(this.languageGroupEl.value);
+    const variants = this.langValues[primaryIdx].slice(1);
+    this.languageVariantEl.innerHTML = variants
+      .map((variant, idx) => `<option value="${idx + 1}">${variant[1] || variant[0]}</option>`)
+      .join('');
+    this.languageVariantEl.value = '1';
+    this.handleLanguageVariantChange();
+  }
+
+  handleLanguageVariantChange() {
+    const primaryIdx = parseInt(this.languageGroupEl.value);
+    const secondaryIdx = parseInt(this.languageVariantEl.value);
+    this.lang = this.langValues[primaryIdx][secondaryIdx][0];
+    if (this.speechRec !== null)
+      this.speechRec.reset(this.lang);
+    this.applySettings();
+  }
+
+  restoreDefaultSettings() {
+    this.toFactorySettings();
+    this.initializeSpeechBackend();
+    this.applySettings();
+  }
+
+  openReaderWithCurrentScript() {
+    this.text = this.editorEl.value;
+    this.updateActiveScriptText(this.text);
+    this.renameActiveScript();
+    this.adaptText();
+    const modal = document.getElementById('prompts-modal');
+    if (modal) modal.close();
+  }
+
+  getLineAnchor(wordIndex) {
+    let safeIndex = min(max(wordIndex, 0), this.numWordSpans - 1);
+    let anchor = document.getElementById(`word_${safeIndex}`);
+    const anchorTop = anchor.offsetTop;
+    while (safeIndex > 0) {
+      const previous = document.getElementById(`word_${safeIndex - 1}`);
+      if (previous.offsetTop !== anchorTop)
+        break;
+      anchor = previous;
+      safeIndex--;
+    }
+    return anchor;
+  }
+
+  getLineHeight(element) {
+    const rectHeight = element.getBoundingClientRect().height;
+    if (rectHeight > 0)
+      return rectHeight;
+    const lineHeight = parseFloat(window.getComputedStyle(element).lineHeight);
+    if (!isNaN(lineHeight))
+      return lineHeight;
+    return this.size;
+  }
+
+  getScrollTargetTop(playDiv, lineAnchor) {
+    if (this.readingPosition == 'top') {
+      const lineHeight = this.getLineHeight(lineAnchor);
+      const lineBasedMargin = Math.max(0, (this.readingTopLines - 1) * lineHeight);
+      return Math.max(lineAnchor.offsetTop - lineBasedMargin - this.readingTopMargin, 0);
+    }
+    return max(0, lineAnchor.offsetTop - (playDiv.clientHeight - lineAnchor.offsetHeight) / 2);
+  }
+
+  smoothScrollPlayDiv(playDiv, targetTop) {
+    this.scrollFollowTarget = max(0, targetTop);
+    if (this.scrollAnimationFrame !== null)
+      return;
+    const step = () => {
+      const currentTop = playDiv.scrollTop;
+      const distance = this.scrollFollowTarget - currentTop;
+      if (Math.abs(distance) < 0.75) {
+        playDiv.scrollTop = this.scrollFollowTarget;
+        this.scrollAnimationFrame = null;
+        return;
+      }
+      const smoothing = Math.min(0.24, Math.max(0.1, Math.abs(distance) / 600));
+      playDiv.scrollTop = currentTop + distance * smoothing;
+      this.scrollAnimationFrame = window.requestAnimationFrame(step);
+    };
+    this.scrollAnimationFrame = window.requestAnimationFrame(step);
+  }
+
+  stopSmoothScroll() {
+    if (this.scrollAnimationFrame !== null) {
+      window.cancelAnimationFrame(this.scrollAnimationFrame);
+      this.scrollAnimationFrame = null;
     }
   }
 
@@ -506,15 +1237,11 @@ class Teleprompter {
   }
 
   showPanel(timeout = 3000) {
-    document.getElementById('settings_container').style.maxWidth = '15.1em';
-    this.panelOpened = max((new Date()).getTime() + timeout - 3000, this.panelOpened);
-    window.setTimeout(() => this.hidePanel(), timeout + 100);
+    return timeout;
   }
 
   hidePanel() {
-    if ((new Date()).getTime() - this.panelOpened > 3000) {
-      document.getElementById('settings_container').style.maxWidth = '2.3em';
-    }
+    return;
   }
 
   addMessage(type, content) {
@@ -524,11 +1251,8 @@ class Teleprompter {
     const newMsg = document.createElement('div');
     newMsg.setAttribute('id', `msg-${this.msgCounter}`);
     newMsg.setAttribute('class', type);
-    newMsg.innerHTML = `<div class="s_flex">
-      <div class="s_icon"><img src="icons/${type}-white.svg" class="s_img" /></div><span class="s_msg">${content}</span>
-    </div>`;
+    newMsg.innerHTML = `<strong>${type.toUpperCase()}</strong><div>${content}</div>`;
     document.getElementById('messages').appendChild(newMsg);
-    this.showPanel(10000);
     window.setTimeout(hideFct, 60000);
     return this.msgCounter++;
   }
@@ -540,21 +1264,405 @@ class Teleprompter {
       par.removeChild(msg);
     } catch (e) {}
   }
-}
 
-// Inside the Teleprompter class or setup function where event listeners are set up
-document.getElementById('s_play').addEventListener('click', function() {
-  // Toggle play/pause for the teleprompter
-  if (this.play) {
-    pauseTeleprompter(); // Assume this function pauses the teleprompter
-    pauseStopwatch();
-  } else {
-    startTeleprompter(); // Assume this function starts the teleprompter
-    startStopwatch();
+  rgbToHex(rgb) {
+    return `#${rgb.map(value => value.toString(16).padStart(2, '0')).join('')}`;
   }
-});
 
-document.getElementById('s_restart').addEventListener('click', function() {
-  resetTeleprompter(); // Assume this function resets the teleprompter
-  resetStopwatch();
-});
+  hexToRgb(hex) {
+    const normalized = hex.replace('#', '');
+    return [
+      parseInt(normalized.substring(0, 2), 16),
+      parseInt(normalized.substring(2, 4), 16),
+      parseInt(normalized.substring(4, 6), 16),
+    ];
+  }
+
+  getDefaultMatchTuning() {
+    return {
+      shortWordThreshold: 70,
+      mediumWordThreshold: 78,
+      longWordThreshold: 84,
+      strongMatchThreshold: 96,
+      skipShortWordLength: 3,
+      requiredSequentialMatches: 2,
+      rejoinEnabled: true,
+      rejoinLookaheadWindow: 18,
+      rejoinSequenceLength: 3,
+      rejoinConfidenceThreshold: 82,
+      rejoinMaxGapInSpeech: 2,
+      rejoinCooldown: 1,
+    };
+  }
+
+  normalizeMatchTuning(tuning) {
+    const defaults = this.getDefaultMatchTuning();
+    const safeNumber = (value, fallback, minValue, maxValue) => {
+      const parsed = parseInt(value);
+      if (isNaN(parsed))
+        return fallback;
+      return min(max(parsed, minValue), maxValue);
+    };
+    return {
+      shortWordThreshold: safeNumber(tuning && tuning.shortWordThreshold, defaults.shortWordThreshold, 50, 100),
+      mediumWordThreshold: safeNumber(tuning && tuning.mediumWordThreshold, defaults.mediumWordThreshold, 50, 100),
+      longWordThreshold: safeNumber(tuning && tuning.longWordThreshold, defaults.longWordThreshold, 50, 100),
+      strongMatchThreshold: safeNumber(tuning && tuning.strongMatchThreshold, defaults.strongMatchThreshold, 70, 100),
+      skipShortWordLength: safeNumber(tuning && tuning.skipShortWordLength, defaults.skipShortWordLength, 0, 6),
+      requiredSequentialMatches: safeNumber(tuning && tuning.requiredSequentialMatches, defaults.requiredSequentialMatches, 1, 5),
+      rejoinEnabled: tuning && typeof tuning.rejoinEnabled === 'boolean' ? tuning.rejoinEnabled : defaults.rejoinEnabled,
+      rejoinLookaheadWindow: safeNumber(tuning && tuning.rejoinLookaheadWindow, defaults.rejoinLookaheadWindow, 4, 60),
+      rejoinSequenceLength: safeNumber(tuning && tuning.rejoinSequenceLength, defaults.rejoinSequenceLength, 2, 8),
+      rejoinConfidenceThreshold: safeNumber(tuning && tuning.rejoinConfidenceThreshold, defaults.rejoinConfidenceThreshold, 60, 100),
+      rejoinMaxGapInSpeech: safeNumber(tuning && tuning.rejoinMaxGapInSpeech, defaults.rejoinMaxGapInSpeech, 0, 6),
+      rejoinCooldown: safeNumber(tuning && tuning.rejoinCooldown, defaults.rejoinCooldown, 0, 5),
+    };
+  }
+
+  updateMatchTuningFromInputs() {
+    this.matchTuning = this.normalizeMatchTuning({
+      shortWordThreshold: document.getElementById('match-short-threshold').value,
+      mediumWordThreshold: document.getElementById('match-medium-threshold').value,
+      longWordThreshold: document.getElementById('match-long-threshold').value,
+      strongMatchThreshold: document.getElementById('match-strong-threshold').value,
+      skipShortWordLength: document.getElementById('match-skip-short-word-length').value,
+      requiredSequentialMatches: document.getElementById('match-required-sequential').value,
+      rejoinEnabled: document.getElementById('rejoin-enabled').checked,
+      rejoinLookaheadWindow: document.getElementById('rejoin-lookahead-window').value,
+      rejoinSequenceLength: document.getElementById('rejoin-sequence-length').value,
+      rejoinConfidenceThreshold: document.getElementById('rejoin-confidence-threshold').value,
+      rejoinMaxGapInSpeech: document.getElementById('rejoin-max-gap-in-speech').value,
+      rejoinCooldown: document.getElementById('rejoin-cooldown').value,
+    });
+    this.applySettings();
+  }
+
+  syncMatchTuningInputs() {
+    document.getElementById('match-short-threshold').value = this.matchTuning.shortWordThreshold;
+    document.getElementById('match-medium-threshold').value = this.matchTuning.mediumWordThreshold;
+    document.getElementById('match-long-threshold').value = this.matchTuning.longWordThreshold;
+    document.getElementById('match-strong-threshold').value = this.matchTuning.strongMatchThreshold;
+    document.getElementById('match-skip-short-word-length').value = this.matchTuning.skipShortWordLength;
+    document.getElementById('match-required-sequential').value = this.matchTuning.requiredSequentialMatches;
+    document.getElementById('rejoin-enabled').checked = this.matchTuning.rejoinEnabled;
+    document.getElementById('rejoin-lookahead-window').value = this.matchTuning.rejoinLookaheadWindow;
+    document.getElementById('rejoin-sequence-length').value = this.matchTuning.rejoinSequenceLength;
+    document.getElementById('rejoin-confidence-threshold').value = this.matchTuning.rejoinConfidenceThreshold;
+    document.getElementById('rejoin-max-gap-in-speech').value = this.matchTuning.rejoinMaxGapInSpeech;
+    document.getElementById('rejoin-cooldown').value = this.matchTuning.rejoinCooldown;
+  }
+
+  updateDesignControlsFromInputs() {
+    this.textBoxWidth = min(max(parseInt(document.getElementById('text-box-width').value) || 84, 40), 100);
+    this.size = min(max(parseInt(document.getElementById('text-size-live').value) || 120, 40), 220);
+    this.textLineHeight = min(max((parseInt(document.getElementById('line-height-live').value) || 125) / 100, 0.9), 2.2);
+    this.font = document.getElementById('font-family-live').value;
+    this.fontWeight = min(max(parseInt(document.getElementById('font-weight-live').value) || 400, 300), 900);
+    this.textAlign = document.getElementById('text-align-live').value;
+    this.highlightColor = this.hexToRgb(document.getElementById('highlight-color-live').value);
+    this.fg = this.hexToRgb(document.getElementById('text-color-live').value);
+    this.applySettings();
+  }
+
+  syncDesignControlInputs() {
+    document.getElementById('text-box-width').value = this.textBoxWidth;
+    document.getElementById('text-size-live').value = this.size;
+    document.getElementById('line-height-live').value = Math.round(this.textLineHeight * 100);
+    document.getElementById('font-family-live').value = this.font;
+    document.getElementById('font-weight-live').value = `${this.fontWeight}`;
+    document.getElementById('text-align-live').value = this.textAlign;
+    document.getElementById('highlight-color-live').value = this.rgbToHex(this.highlightColor);
+    document.getElementById('text-color-live').value = this.rgbToHex(this.fg);
+  }
+
+  getSpeechBackendLabel() {
+    return 'Web Speech API';
+  }
+
+  getSpeechBackendOptions() {
+    return {};
+  }
+
+  initializeSpeechBackend() {
+    if (this.speechRec !== null)
+      this.speechRec.stop();
+    this.speechRec = createSpeechRecognizer(
+      'webspeech',
+      (a, b, c) => this.speechResult(a, b, c),
+      this.lang,
+      this.getSpeechBackendOptions()
+    );
+    this.speechBackendStatus = 'Web Speech API ready';
+  }
+
+  handleVisibilityChange() {
+    if (!this.play)
+      return;
+    if (document.hidden) {
+      this.waitingForVisibilityResume = true;
+      this.micStatus = 'Backgrounded, waiting to resume';
+      this.speechBackendStatus = 'Backgrounded, waiting to resume';
+      this.applySettings();
+      return;
+    }
+    this.resumeRecognitionAfterInterruption(250);
+  }
+
+  resumeRecognitionAfterInterruption(delay = 250) {
+    if (!this.play || document.hidden || this.currentPosition >= this.recText.length)
+      return;
+    if (this.speechRec !== null && this.speechRec.listening)
+      return;
+    if (this.resumeRecognitionTimer !== null)
+      window.clearTimeout(this.resumeRecognitionTimer);
+    this.resumeRecognitionTimer = window.setTimeout(() => {
+      this.resumeRecognitionTimer = null;
+      if (!this.play || document.hidden || this.currentPosition >= this.recText.length)
+        return;
+      this.startRecognition(false);
+    }, delay);
+  }
+
+  openScriptLibrary() {
+    this.setView('prompts');
+  }
+
+  closeScriptLibrary() {
+    this.setView('reader');
+  }
+
+  mountCustomizePanels() {
+    return;
+  }
+
+  openCustomizePanel() {
+    this.setView('settings');
+  }
+
+  closeCustomizePanel() {
+    this.setView('reader');
+  }
+
+  loadTextLibrary() {
+    let storedLibrary = null;
+    let storedActiveId = null;
+    try {
+      storedLibrary = JSON.parse(localStorage.getItem('teleprompterTextLibrary'));
+      storedActiveId = JSON.parse(localStorage.getItem('teleprompterActiveTextId'));
+    } catch (e) {}
+    const legacyText = localStorage.getItem('text') !== null
+      ? JSON.parse(localStorage.getItem('text'))
+      : this.text;
+    if (!Array.isArray(storedLibrary) || storedLibrary.length === 0) {
+      this.textLibrary = [{
+        id: this.createScriptId(),
+        title: 'Prompt principal',
+        text: legacyText,
+      }];
+      this.activeTextId = this.textLibrary[0].id;
+      this.text = legacyText;
+      return;
+    }
+    this.textLibrary = storedLibrary
+      .filter(item => item && typeof item.id === 'string')
+      .map(item => ({
+        id: item.id,
+        title: this.normalizeScriptTitle(item.title),
+        text: typeof item.text === 'string' ? item.text : '',
+      }));
+    if (this.textLibrary.length === 0) {
+      this.textLibrary = [{
+        id: this.createScriptId(),
+        title: 'Prompt principal',
+        text: legacyText,
+      }];
+    }
+    this.activeTextId = this.textLibrary.some(item => item.id === storedActiveId)
+      ? storedActiveId
+      : this.textLibrary[0].id;
+    const activeScript = this.getActiveScript();
+    this.text = activeScript ? activeScript.text : legacyText;
+  }
+
+  createScriptId() {
+    return `text_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  normalizeScriptTitle(title) {
+    if (typeof title !== 'string')
+      return 'Untitled text';
+    const normalized = title.trim();
+    return normalized === '' ? 'Untitled text' : normalized;
+  }
+
+  getActiveScript() {
+    return this.textLibrary.find(item => item.id === this.activeTextId) || null;
+  }
+
+  getActiveTextTitle() {
+    const activeScript = this.getActiveScript();
+    return activeScript ? activeScript.title : '';
+  }
+
+  getLibraryStatus() {
+    const count = this.textLibrary.length;
+    return `${count} prompt${count === 1 ? '' : 's'}`;
+  }
+
+  getScriptPreview(text) {
+    const normalized = (text || '').replace(/\s+/g, ' ').trim();
+    if (normalized === '')
+      return 'Empty text';
+    if (normalized.length <= 100)
+      return normalized;
+    return `${normalized.substring(0, 100)}…`;
+  }
+
+  renderTextLibrary() {
+    const container = document.getElementById('script-list');
+    const query = this.filteredQuery.trim().toLowerCase();
+    const visibleScripts = this.textLibrary.filter(item => {
+      if (query === '')
+        return true;
+      return item.title.toLowerCase().includes(query) || item.text.toLowerCase().includes(query);
+    });
+    const cards = visibleScripts.map(item => `
+      <button type="button" class="script-card${item.id === this.activeTextId ? ' active' : ''}" data-script-id="${item.id}">
+        <span class="script-card-title">${escapeHtml(item.title)}</span>
+        <span class="script-card-meta">
+          <span>${item.id === this.activeTextId ? 'Activo' : 'Disponible'}</span>
+          <span>${item.text.trim().split(/\s+/).filter(Boolean).length} palabras</span>
+        </span>
+        <span class="script-card-preview">${escapeHtml(this.getScriptPreview(item.text))}</span>
+      </button>
+    `).join('');
+    if (cards === '') {
+      container.innerHTML = '<div class="script-card"><span class="script-card-title">Sin resultados</span><span class="script-card-preview">Prueba con otro término de búsqueda.</span></div>';
+      return;
+    }
+    container.innerHTML = cards;
+    const cardElements = container.querySelectorAll('[data-script-id]');
+    for (let i = 0; i < cardElements.length; i++) {
+      cardElements[i].addEventListener('click', evt => this.selectScript(evt.currentTarget.dataset.scriptId));
+    }
+  }
+
+  selectScript(scriptId) {
+    const selected = this.textLibrary.find(item => item.id === scriptId);
+    if (selected === undefined)
+      return;
+    this.stop();
+    this.resetStopwatchSafely();
+    this.activeTextId = selected.id;
+    this.text = selected.text;
+    if (this.editorEl)
+      this.editorEl.value = this.text;
+    if (this.readingEditorEl)
+      this.readingEditorEl.value = this.text;
+    this.adaptText();
+    this.applySettings();
+  }
+
+  updateActiveScriptText(text) {
+    const activeScript = this.getActiveScript();
+    if (activeScript === null)
+      return;
+    activeScript.text = text;
+  }
+
+  renameActiveScript() {
+    const activeScript = this.getActiveScript();
+    if (activeScript === null)
+      return;
+    activeScript.title = this.normalizeScriptTitle(this.scriptTitleEl.value);
+    this.applySettings();
+  }
+
+  createNewScript() {
+    const newScript = {
+      id: this.createScriptId(),
+      title: `Prompt ${this.textLibrary.length + 1}`,
+      text: '',
+    };
+    this.textLibrary.unshift(newScript);
+    this.activeTextId = newScript.id;
+    this.stop();
+    this.resetStopwatchSafely();
+    this.text = '';
+    if (this.editorEl)
+      this.editorEl.value = this.text;
+    if (this.readingEditorEl)
+      this.readingEditorEl.value = this.text;
+    this.adaptText();
+    this.applySettings();
+    if (this.scriptTitleEl)
+      this.scriptTitleEl.focus();
+  }
+
+  saveCurrentScript() {
+    this.text = this.editorEl.value;
+    this.updateActiveScriptText(this.text);
+    this.renameActiveScript();
+    this.adaptText();
+    this.applySettings();
+    this.addMessage('info', `Guardaste "${escapeHtml(this.getActiveTextTitle())}".`);
+  }
+
+  duplicateCurrentScript() {
+    const activeScript = this.getActiveScript();
+    if (activeScript === null)
+      return;
+    const duplicate = {
+      id: this.createScriptId(),
+      title: `${activeScript.title} copia`,
+      text: activeScript.text,
+    };
+    this.textLibrary.unshift(duplicate);
+    this.activeTextId = duplicate.id;
+    this.text = duplicate.text;
+    if (this.editorEl)
+      this.editorEl.value = this.text;
+    if (this.readingEditorEl)
+      this.readingEditorEl.value = this.text;
+    this.adaptText();
+    this.applySettings();
+  }
+
+  deleteCurrentScript() {
+    if (this.textLibrary.length <= 1) {
+      const activeScript = this.getActiveScript();
+      if (activeScript !== null) {
+        activeScript.title = 'Prompt principal';
+        activeScript.text = DEFAULT_TEXT_EN;
+        this.text = activeScript.text;
+      } else {
+        this.text = DEFAULT_TEXT_EN;
+      }
+      this.stop();
+      this.resetStopwatchSafely();
+      if (this.editorEl)
+        this.editorEl.value = this.text;
+      if (this.readingEditorEl)
+        this.readingEditorEl.value = this.text;
+      this.adaptText();
+      this.applySettings();
+      this.addMessage('warning', 'Debe quedar al menos un prompt guardado.');
+      return;
+    }
+    const activeIdx = this.textLibrary.findIndex(item => item.id === this.activeTextId);
+    if (activeIdx === -1)
+      return;
+    this.textLibrary.splice(activeIdx, 1);
+    const nextIdx = min(activeIdx, this.textLibrary.length - 1);
+    this.activeTextId = this.textLibrary[nextIdx].id;
+    this.text = this.textLibrary[nextIdx].text;
+    this.stop();
+    this.resetStopwatchSafely();
+    if (this.editorEl)
+      this.editorEl.value = this.text;
+    if (this.readingEditorEl)
+      this.readingEditorEl.value = this.text;
+    this.adaptText();
+    this.applySettings();
+  }
+}

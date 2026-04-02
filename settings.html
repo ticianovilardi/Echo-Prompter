@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prompty | Ajustes y calibración</title>
+<meta name="description" content="Calibrá lectura, idioma y coincidencia de voz en Prompty para conseguir sesiones más fluidas y confiables.">
+<meta name="theme-color" content="#07111b">
+<meta property="og:title" content="Prompty | Ajustes y calibración">
+<meta property="og:description" content="Configurá la experiencia de lectura y el motor de voz de Prompty.">
+<meta property="og:type" content="website">
+<link rel="icon" href="icons/play-white.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Manrope:wght@500;700;800&display=swap" rel="stylesheet">
+</head>
+<body data-entry-view="settings" onload="main();">
+  <div class="app-shell app-shell-settings">
+    <aside class="app-sidebar">
+      <a href="index.html" class="brand-block" aria-label="Ir al lector de Prompty">
+        <div class="brand-mark">P</div>
+        <div>
+          <p class="eyebrow">Prompty Studio</p>
+          <h1>Prompty</h1>
+        </div>
+      </a>
+
+      <nav class="app-nav" aria-label="Navegación principal">
+        <a href="index.html" class="nav-link" data-view="reader">
+          <i class="fa-solid fa-wave-square nav-link-icon" aria-hidden="true"></i>
+          <span class="nav-link-label">Lector</span>
+          <span class="nav-link-meta">Sesión en vivo y control</span>
+        </a>
+        <a href="prompts.html" class="nav-link" data-view="prompts">
+          <i class="fa-solid fa-book-open nav-link-icon" aria-hidden="true"></i>
+          <span class="nav-link-label">Prompts</span>
+          <span class="nav-link-meta">Biblioteca y edición</span>
+        </a>
+        <a href="settings.html" class="nav-link" data-view="settings">
+          <i class="fa-solid fa-sliders nav-link-icon" aria-hidden="true"></i>
+          <span class="nav-link-label">Ajustes</span>
+          <span class="nav-link-meta">Lectura, voz y calibración</span>
+        </a>
+      </nav>
+
+      <section class="sidebar-panel sidebar-focus-panel">
+        <p class="sidebar-label">Prompt activo</p>
+        <h2 id="sidebar-active-title">Sin título</h2>
+        <p id="sidebar-active-preview" class="sidebar-preview">Configurá la lectura y el seguimiento por voz para que la próxima sesión sea más estable.</p>
+      </section>
+
+      <section class="sidebar-panel sidebar-panel-muted">
+        <p class="sidebar-label">Estado actual</p>
+        <div class="sidebar-stats">
+          <div>
+            <span class="stat-label">Prompt</span>
+            <strong id="active-script-label">Sin título</strong>
+          </div>
+          <div>
+            <span class="stat-label">Micrófono</span>
+            <strong id="sidebar-mic">Listo</strong>
+          </div>
+        </div>
+      </section>
+    </aside>
+
+    <main class="app-main">
+      <header class="page-hero">
+        <div class="page-hero-copy">
+          <p class="eyebrow">Ajustes y calibración</p>
+          <h2 id="app-view-title">Dejá Prompty listo para cada entorno</h2>
+          <p class="hero-summary">Ajustá la lectura visible, el idioma del reconocimiento y la precisión del seguimiento para sesiones más previsibles.</p>
+        </div>
+        <div class="hero-actions">
+          <button id="restore-defaults" type="button" class="secondary-button">
+            <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
+            <span>Restaurar ajustes</span>
+          </button>
+          <a href="index.html" class="primary-button">
+            <i class="fa-solid fa-play" aria-hidden="true"></i>
+            <span>Volver al lector</span>
+          </a>
+        </div>
+      </header>
+
+      <section class="settings-grid">
+        <section class="workspace-panel settings-card">
+          <div class="panel-head">
+            <div>
+              <p class="sidebar-label">Lectura</p>
+              <h3>Tipografía y foco visual</h3>
+            </div>
+          </div>
+          <div class="settings-fields">
+            <label class="field-group" for="text-box-width">
+              <span>Ancho del bloque de texto</span>
+              <input id="text-box-width" type="range" min="40" max="100" step="1" value="84">
+            </label>
+            <label class="field-group" for="text-size-live">
+              <span>Tamaño de texto</span>
+              <input id="text-size-live" type="range" min="40" max="220" step="2" value="120">
+            </label>
+            <label class="field-group" for="line-height-live">
+              <span>Interlineado</span>
+              <input id="line-height-live" type="range" min="90" max="220" step="5" value="125">
+            </label>
+            <label class="field-group" for="font-family-live">
+              <span>Tipografía</span>
+              <select id="font-family-live">
+                <option value="'Instrument Sans', sans-serif">Instrument Sans</option>
+                <option value="'Manrope', sans-serif">Manrope</option>
+                <option value="'Lato', sans-serif">Lato</option>
+                <option value="Arial, sans-serif">Arial</option>
+                <option value="'Georgia', serif">Georgia</option>
+              </select>
+            </label>
+            <label class="field-group" for="font-weight-live">
+              <span>Peso tipográfico</span>
+              <select id="font-weight-live">
+                <option value="400">Regular</option>
+                <option value="500">Medium</option>
+                <option value="600">Semi bold</option>
+                <option value="700">Bold</option>
+              </select>
+            </label>
+            <label class="field-group" for="text-align-live">
+              <span>Alineación</span>
+              <select id="text-align-live">
+                <option value="center">Centro</option>
+                <option value="left">Izquierda</option>
+                <option value="justify">Justificado</option>
+              </select>
+            </label>
+            <label class="field-group" for="highlight-color-live">
+              <span>Color de progreso leído</span>
+              <input id="highlight-color-live" type="color" value="#7ee787">
+            </label>
+            <label class="field-group" for="text-color-live">
+              <span>Color del texto</span>
+              <input id="text-color-live" type="color" value="#f2f2f2">
+            </label>
+          </div>
+        </section>
+
+        <section class="workspace-panel settings-card">
+          <div class="panel-head">
+            <div>
+              <p class="sidebar-label">Seguimiento por voz</p>
+              <h3>Idioma y estabilidad</h3>
+            </div>
+          </div>
+          <div class="settings-fields">
+            <label class="field-group" for="language-group">
+              <span>Idioma del reconocimiento</span>
+              <select id="language-group"></select>
+            </label>
+            <label class="field-group" for="language-variant">
+              <span>Variante</span>
+              <select id="language-variant"></select>
+            </label>
+            <label class="field-group" for="follow-lag">
+              <span>Retraso de seguimiento</span>
+              <input id="follow-lag" type="range" min="0" max="20" step="1" value="4">
+              <small id="follow-lag-value">4 palabras</small>
+            </label>
+            <label class="field-group" for="reading-position">
+              <span>Posición de lectura</span>
+              <select id="reading-position">
+                <option value="top">Superior</option>
+                <option value="center">Centro</option>
+              </select>
+            </label>
+            <label class="field-group" for="reading-top-margin">
+              <span>Margen superior</span>
+              <input id="reading-top-margin" type="number" min="0" max="600" step="10" value="140">
+              <small id="reading-top-margin-value">140px</small>
+            </label>
+            <label class="field-group" for="reading-top-lines">
+              <span>Líneas de anticipación</span>
+              <input id="reading-top-lines" type="number" min="1" max="6" step="1" value="2">
+              <small id="reading-top-lines-value">2 líneas</small>
+            </label>
+            <label class="field-group" for="highlight-color">
+              <span>Color de progreso</span>
+              <input id="highlight-color" type="color" value="#7ee787">
+            </label>
+            <label class="field-group inline-toggle" for="showrec-toggle">
+              <span>Mostrar texto detectado</span>
+              <input id="showrec-toggle" type="checkbox" checked>
+            </label>
+            <label class="field-group inline-toggle" for="mirrorh-toggle">
+              <span>Espejo horizontal</span>
+              <input id="mirrorh-toggle" type="checkbox">
+            </label>
+            <label class="field-group inline-toggle" for="mirrorv-toggle">
+              <span>Espejo vertical</span>
+              <input id="mirrorv-toggle" type="checkbox">
+            </label>
+          </div>
+        </section>
+
+        <section class="workspace-panel settings-card settings-card-wide">
+          <div class="panel-head">
+            <div>
+              <p class="sidebar-label">Ajustes avanzados</p>
+              <h3>Precisión del matching y reenganche</h3>
+            </div>
+          </div>
+          <div class="settings-fields">
+            <label class="field-group" for="match-short-threshold">
+              <span>Precisión mínima en palabras cortas</span>
+              <input id="match-short-threshold" type="number" min="50" max="100" step="1" value="70">
+            </label>
+            <label class="field-group" for="match-medium-threshold">
+              <span>Precisión mínima en palabras medias</span>
+              <input id="match-medium-threshold" type="number" min="50" max="100" step="1" value="78">
+            </label>
+            <label class="field-group" for="match-long-threshold">
+              <span>Precisión mínima en palabras largas</span>
+              <input id="match-long-threshold" type="number" min="50" max="100" step="1" value="84">
+            </label>
+            <label class="field-group" for="match-strong-threshold">
+              <span>Precisión alta</span>
+              <input id="match-strong-threshold" type="number" min="70" max="100" step="1" value="96">
+            </label>
+            <label class="field-group" for="match-required-sequential">
+              <span>Coincidencias secuenciales requeridas</span>
+              <input id="match-required-sequential" type="number" min="1" max="5" step="1" value="2">
+            </label>
+            <label class="field-group" for="match-skip-short-word-length">
+              <span>Ignorar palabras de hasta</span>
+              <input id="match-skip-short-word-length" type="number" min="0" max="6" step="1" value="3">
+            </label>
+            <label class="field-group inline-toggle" for="rejoin-enabled">
+              <span>Reenganche automático</span>
+              <input id="rejoin-enabled" type="checkbox" checked>
+            </label>
+            <label class="field-group" for="rejoin-lookahead-window">
+              <span>Ventana de reenganche</span>
+              <input id="rejoin-lookahead-window" type="number" min="4" max="60" step="1" value="18">
+            </label>
+            <label class="field-group" for="rejoin-sequence-length">
+              <span>Largo de secuencia</span>
+              <input id="rejoin-sequence-length" type="number" min="2" max="8" step="1" value="3">
+            </label>
+            <label class="field-group" for="rejoin-confidence-threshold">
+              <span>Confianza mínima</span>
+              <input id="rejoin-confidence-threshold" type="number" min="60" max="100" step="1" value="82">
+            </label>
+            <label class="field-group" for="rejoin-max-gap-in-speech">
+              <span>Pausa máxima tolerada</span>
+              <input id="rejoin-max-gap-in-speech" type="number" min="0" max="6" step="1" value="2">
+            </label>
+            <label class="field-group" for="rejoin-cooldown">
+              <span>Espera entre reenganches</span>
+              <input id="rejoin-cooldown" type="number" min="0" max="5" step="1" value="1">
+            </label>
+          </div>
+        </section>
+
+        <section class="workspace-panel settings-card">
+          <div class="panel-head">
+            <div>
+              <p class="sidebar-label">Temporizador</p>
+              <h3>Cuenta regresiva de sesión</h3>
+            </div>
+          </div>
+          <div class="settings-fields settings-fields-timer">
+            <div class="timer-block">
+              <div class="timer-display" id="time-display">00:00</div>
+              <div class="timer-inputs">
+                <input id="minutes" type="number" placeholder="MM" min="0" max="59" aria-label="Minutos">
+                <input id="seconds" type="number" placeholder="SS" min="0" max="59" aria-label="Segundos">
+              </div>
+              <div class="timer-actions">
+                <button id="start-timer" type="button" class="primary-button">Iniciar timer</button>
+                <button id="pause-timer" type="button" class="secondary-button" style="display:none;">Pausar</button>
+                <button id="stop-timer" type="button" class="secondary-button" style="display:none;">Detener</button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <div id="messages" class="toast-stack" aria-live="polite"></div>
+      <div class="app-support-dom" hidden aria-hidden="true">
+        <strong id="sidebar-progress">0%</strong>
+        <strong id="script-library-status">0 prompts</strong>
+        <div id="script-list"></div>
+        <input id="script-title" type="text">
+        <textarea id="prompt-editor"></textarea>
+        <strong id="reader-mic-status">Listo</strong>
+        <strong id="reader-mic-status-overlay">Listo</strong>
+        <strong id="reader-language-status">es-AR</strong>
+        <strong id="reader-language-status-overlay">es-AR</strong>
+        <strong id="reader-follow-status">4 palabras</strong>
+        <strong id="reader-backend-status">Web Speech API lista</strong>
+        <div id="reader-progress-fill"></div>
+        <strong id="reader-progress-percent">0%</strong>
+        <strong id="reader-progress-meta">0 de 0 palabras</strong>
+        <button id="reader-play-toggle" type="button"></button>
+        <button id="reader-clean-toggle" type="button"></button>
+        <div id="play_div"><span id="play_text"></span></div>
+        <div id="edit_text_div"><textarea id="text_editor"></textarea></div>
+        <div id="disable_block"></div>
+        <div id="rec_text">
+          <span id="disconnected_texts"><span id="looking_for"></span><span id="recorded"></span></span>
+          <span id="connected_texts"></span>
+          <div id="mic_status">Listo</div>
+        </div>
+        <div id="quick-settings-backdrop"></div>
+        <div id="quick-settings-panel"></div>
+        <input id="quick-text-size" type="range" value="120">
+        <input id="quick-text-width" type="range" value="84">
+        <input id="quick-line-height" type="range" value="125">
+        <input id="quick-highlight-color" type="color" value="#7ee787">
+        <input id="quick-text-color" type="color" value="#f2f2f2">
+        <select id="quick-text-align"><option value="center">Centro</option></select>
+      </div>
+    </main>
+  </div>
+
+  <script src="clocks.js"></script>
+  <script src="SpeechRecognizer.js"></script>
+  <script src="constants.js"></script>
+  <script src="helpers.js"></script>
+  <script src="Teleprompter.js"></script>
+  <script>
+    function main() {
+      window.prompter = new Teleprompter();
+    }
+  </script>
+</body>
+</html>

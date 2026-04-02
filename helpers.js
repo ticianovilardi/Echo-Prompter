@@ -141,6 +141,9 @@ function matchText(recText, currentPosition, currentRecording, speechPosition, c
   }
 
   const mWord = i => currentMatchArray[i][0];
+  const setWord = (i, val) => {
+    currentMatchArray[i][0] = val;
+  };
   const firstIdx = (i, val) => {
     if (typeof val === 'undefined') return currentMatchArray[i][1][0];
     currentMatchArray[i][1][0] = val;
@@ -157,11 +160,13 @@ function matchText(recText, currentPosition, currentRecording, speechPosition, c
     if (typeof val === 'undefined') return currentMatchArray[i][2][1];
     currentMatchArray[i][2][1] = val;
   };
+  const bestScore = i => max(firstScore(i), secondScore(i));
 
   let maxScore = -1;
   for (let i = max(0, speechPosition - 10); i < currentRecording.length; i++) {
     while (i >= currentMatchArray.length) currentMatchArray.push(['PLACEHOLDER WORD', [-1, -1], [-1, -1]]);
     if (mWord(i) != currentRecording[i] || firstIdx(i) == -1 || bestScore(i) < 0.7) {
+      setWord(i, currentRecording[i]);
       const targetIdx = newPosition + i - speechPosition;
       firstIdx(i, -1); firstScore(i, -1); secondIdx(i, -1); secondScore(i, -1);
       for (let j = max(0, targetIdx - 3); j < min(recText.length, targetIdx + 9); j++) {
@@ -196,11 +201,11 @@ function matchText(recText, currentPosition, currentRecording, speechPosition, c
   }
   let idxMaxArr = [], idxMatchArr = [];
   for (let i = max(0, speechPosition - 10); i < currentRecording.length; i++) {
-    if (firstScore(i) >= maxScore - 1e-6) {
+    if (firstIdx(i) >= 0 && firstScore(i) >= maxScore - 1e-6) {
       idxMaxArr.push(i); idxMatchArr.push(firstIdx(i));
     }
   }
-  let lisequ = lis(idxMatchArr).map(i => idxMaxArr[i]);
+  let lisequ = idxMatchArr.length > 0 ? lis(idxMatchArr).map(i => idxMaxArr[i]) : [];
 
   const recBestMatch = (leftBoundary, rightBoundary, lowerBound, upperBound, liseq) => {
     for (let maxIdx = 0; maxIdx <= liseq.length; maxIdx++) {
@@ -217,9 +222,19 @@ function matchText(recText, currentPosition, currentRecording, speechPosition, c
               firstScore(i, secondScore(i)); firstIdx(i, secondIdx(i));
               secondScore(i, -1); secondIdx(i, -1);
             } else if (upper - lower >= 2) {
-              const newIdx = Math.floor(lower + (upper - lower - 1) * (i + 1 - rangeStart) / (rangeEnd - rangeStart));
-              firstScore(i, cmpScore(currentRecording[i], recText[newIdx].word)); firstIdx(i, newIdx);
-              secondScore(i, -1); secondIdx(i, -1);
+              const interpolatedIdx = Math.floor(lower + (upper - lower - 1) * (i + 1 - rangeStart) / (rangeEnd - rangeStart));
+              const newIdx = max(0, min(interpolatedIdx, recText.length - 1));
+              if (recText[newIdx] !== undefined) {
+                firstScore(i, cmpScore(currentRecording[i], recText[newIdx].word));
+                firstIdx(i, newIdx);
+                secondScore(i, -1);
+                secondIdx(i, -1);
+              } else {
+                firstScore(i, -1);
+                firstIdx(i, -1);
+                secondScore(i, -1);
+                secondIdx(i, -1);
+              }
             } else {
               firstScore(i, -1); firstIdx(i, -1);
               secondScore(i, -1); secondIdx(i, -1);
@@ -240,17 +255,23 @@ function matchText(recText, currentPosition, currentRecording, speechPosition, c
       }
     }
   };
-  recBestMatch(
-    max(0, speechPosition - 10),
-    currentRecording.length,
-    max(-1, firstIdx(lisequ[0]) - 6),
-    min(recText.length, firstIdx(lisequ[lisequ.length - 1])
-                        + min(1 + 2 * (currentRecording.length - lisequ[lisequ.length - 1] - 1), 6)),
-    lisequ);
+  if (lisequ.length > 0) {
+    const rightBoundary = min(
+      recText.length,
+      max(0, firstIdx(lisequ[lisequ.length - 1]))
+      + min(1 + 2 * (currentRecording.length - lisequ[lisequ.length - 1] - 1), 6)
+    );
+    recBestMatch(
+      max(0, speechPosition - 10),
+      currentRecording.length,
+      max(-1, firstIdx(lisequ[0]) - 6),
+      rightBoundary,
+      lisequ);
+  }
 
   maxScore = -1; let maxPos = -1, foundPos = false;
   for (let i = currentRecording.length - 1; i >= max(0, currentRecording.length - 5); i--) {
-    if (firstScore(i) >= 0.8) {
+    if (firstScore(i) >= 0.9) {
       speechPosition = i + 1; foundPos = true; break;
     } else if (firstScore(i) > maxScore) {
       maxScore = firstScore(i);
@@ -260,9 +281,12 @@ function matchText(recText, currentPosition, currentRecording, speechPosition, c
   if (!foundPos && maxPos >= 1) speechPosition = maxPos;
   if (speechPosition >= 1 && firstIdx(speechPosition - 1) >= 0) newPosition = firstIdx(speechPosition - 1) + 1;
   else if (speechPosition < currentRecording.length && firstIdx(speechPosition) >= 0) newPosition = firstIdx(speechPosition);
+
   if (newPosition < currentPosition && currentPosition - newPosition == 1) {
     newPosition = currentPosition;
     speechPosition++;
+  } else if (newPosition < currentPosition && !hasStrongBacktrackEvidence(currentRecording, currentMatchArray, speechPosition, currentPosition, newPosition)) {
+    newPosition = currentPosition;
   }
   let match = [[], []]; let lastUpperIdx = -1;
   for (let i = max(0, speechPosition - 10); i < currentRecording.length; i++) {
@@ -287,4 +311,218 @@ function matchText(recText, currentPosition, currentRecording, speechPosition, c
   while (currentMatchArray.length > currentRecording.length)
     currentMatchArray.pop();
   return [newPosition, speechPosition, currentMatchArray, match];
+}
+
+function getPreviewPosition(currentPosition, currentRecording, currentMatchArray) {
+  let previewPosition = currentPosition;
+  let expectedIdx = currentPosition;
+  let lead = 0;
+  const maxPreviewLead = 2;
+  for (let i = max(0, currentRecording.length - 8); i < currentRecording.length; i++) {
+    if (i >= currentMatchArray.length) continue;
+    const matchIdx = currentMatchArray[i][1][0];
+    const matchScore = currentMatchArray[i][1][1];
+    if (matchIdx !== expectedIdx) continue;
+    if (matchScore < 0.88 && !(lead === 0 && matchScore >= 0.94)) break;
+    previewPosition = matchIdx + 1;
+    expectedIdx = previewPosition;
+    lead++;
+    if (lead >= maxPreviewLead) break;
+  }
+  return previewPosition;
+}
+
+function getConfirmedPosition(recText, currentPosition, currentRecording, speechPosition, currentMatchArray) {
+  const tuning = getMatchTuning();
+  let pendingPosition = currentPosition;
+  let confirmedPosition = currentPosition;
+  let consecutiveMatches = 0;
+  for (let i = 0; i < currentRecording.length && pendingPosition < recText.length; i++) {
+    const spokenWord = currentRecording[i];
+    const expectedWord = recText[pendingPosition] ? recText[pendingPosition].word : '';
+    const matchScore = cmpScore(expectedWord, spokenWord);
+    if (isSequentialWordMatch(expectedWord, spokenWord, matchScore, tuning)) {
+      pendingPosition++;
+      consecutiveMatches++;
+      if (consecutiveMatches >= tuning.requiredSequentialMatches || isStrongSequentialWordMatch(expectedWord, spokenWord, matchScore, tuning))
+        confirmedPosition = pendingPosition;
+      continue;
+    }
+    if (pendingPosition + 1 < recText.length) {
+      const skippedWord = recText[pendingPosition].word;
+      const nextExpectedWord = recText[pendingPosition + 1].word;
+      const nextMatchScore = cmpScore(nextExpectedWord, spokenWord);
+      if (skippedWord.length <= tuning.skipShortWordLength && isSequentialWordMatch(nextExpectedWord, spokenWord, nextMatchScore, tuning)) {
+        pendingPosition += 2;
+        consecutiveMatches++;
+        if (consecutiveMatches >= tuning.requiredSequentialMatches || isStrongSequentialWordMatch(nextExpectedWord, spokenWord, nextMatchScore, tuning))
+          confirmedPosition = pendingPosition;
+      }
+    }
+  }
+  if (confirmedPosition === currentPosition && tuning.rejoinEnabled) {
+    const rejoinPosition = findRejoinPosition(recText, currentPosition, currentRecording, currentMatchArray, tuning);
+    if (rejoinPosition !== null)
+      return rejoinPosition;
+  }
+  return confirmedPosition;
+}
+
+function findRejoinPosition(recText, currentPosition, currentRecording, currentMatchArray, tuning) {
+  if (tuning.rejoinCooldown > 0 && getRecentRejoinCount(currentMatchArray, tuning.rejoinCooldown) > 0)
+    return null;
+  if (currentRecording.length < tuning.rejoinSequenceLength)
+    return null;
+
+  const speechStart = max(0, currentRecording.length - (tuning.rejoinLookaheadWindow + tuning.rejoinSequenceLength + tuning.rejoinMaxGapInSpeech + 8));
+  const speechEnd = currentRecording.length;
+  const promptStart = currentPosition + 1;
+  const promptEnd = min(recText.length - tuning.rejoinSequenceLength, currentPosition + tuning.rejoinLookaheadWindow);
+  let bestMatch = null;
+
+  for (let promptIdx = promptStart; promptIdx <= promptEnd; promptIdx++) {
+    for (let speechIdx = speechStart; speechIdx < speechEnd; speechIdx++) {
+      const candidate = scoreRejoinSequence(recText, promptIdx, currentRecording, speechIdx, tuning);
+      if (candidate === null)
+        continue;
+      if (bestMatch === null ||
+          candidate.averageScore > bestMatch.averageScore + 1e-6 ||
+          (Math.abs(candidate.promptEnd - currentPosition) < Math.abs(bestMatch.promptEnd - currentPosition))) {
+        bestMatch = candidate;
+      }
+    }
+  }
+
+  if (bestMatch === null)
+    return null;
+
+  markRejoinUsage(currentMatchArray, bestMatch);
+  return bestMatch.promptEnd;
+}
+
+function scoreRejoinSequence(recText, promptStartIdx, currentRecording, speechStartIdx, tuning) {
+  let promptIdx = promptStartIdx;
+  let speechIdx = speechStartIdx;
+  let matchedWords = 0;
+  let totalScore = 0;
+  let gapBudget = tuning.rejoinMaxGapInSpeech;
+  const matchedSpeechIndices = [];
+
+  while (promptIdx < recText.length && speechIdx < currentRecording.length) {
+    const expectedWord = recText[promptIdx].word;
+    const spokenWord = currentRecording[speechIdx];
+    const score = cmpScore(expectedWord, spokenWord);
+    if (isSequentialWordMatch(expectedWord, spokenWord, score, tuning)) {
+      totalScore += score;
+      matchedWords++;
+      matchedSpeechIndices.push(speechIdx);
+      promptIdx++;
+      speechIdx++;
+      if (matchedWords >= tuning.rejoinSequenceLength)
+        break;
+      continue;
+    }
+    if (gapBudget <= 0)
+      return null;
+    gapBudget--;
+    speechIdx++;
+  }
+
+  if (matchedWords < tuning.rejoinSequenceLength)
+    return null;
+
+  const averageScore = totalScore / matchedWords;
+  if (averageScore < tuning.rejoinConfidenceThreshold / 100)
+    return null;
+
+  return {
+    promptStart: promptStartIdx,
+    promptEnd: promptIdx,
+    averageScore,
+    matchedWords,
+    speechIndices: matchedSpeechIndices,
+  };
+}
+
+function getRecentRejoinCount(currentMatchArray, cooldownWindow) {
+  let rejoinCount = 0;
+  const start = max(0, currentMatchArray.length - cooldownWindow);
+  for (let i = start; i < currentMatchArray.length; i++) {
+    if (currentMatchArray[i] && currentMatchArray[i][3] && currentMatchArray[i][3].rejoin === true)
+      rejoinCount++;
+  }
+  return rejoinCount;
+}
+
+function markRejoinUsage(currentMatchArray, bestMatch) {
+  for (let k = 0; k < bestMatch.speechIndices.length; k++) {
+    const i = bestMatch.speechIndices[k];
+    while (i >= currentMatchArray.length)
+      currentMatchArray.push(['PLACEHOLDER WORD', [-1, -1], [-1, -1], null]);
+    if (!Array.isArray(currentMatchArray[i]) || currentMatchArray[i].length < 4)
+      currentMatchArray[i] = [currentMatchArray[i][0], currentMatchArray[i][1], currentMatchArray[i][2], null];
+    currentMatchArray[i][3] = { rejoin: true };
+  }
+}
+
+function isSequentialWordMatch(expectedWord, spokenWord, score, tuning) {
+  if (expectedWord === spokenWord)
+    return true;
+  if (expectedWord.length <= 2)
+    return score >= tuning.shortWordThreshold / 100;
+  if (expectedWord.length <= 4)
+    return score >= tuning.mediumWordThreshold / 100;
+  return score >= tuning.longWordThreshold / 100;
+}
+
+function isStrongSequentialWordMatch(expectedWord, spokenWord, score, tuning) {
+  return expectedWord === spokenWord || score >= tuning.strongMatchThreshold / 100 || expectedWord.length >= 8;
+}
+
+function getMatchTuning() {
+  const defaults = {
+    shortWordThreshold: 70,
+    mediumWordThreshold: 78,
+    longWordThreshold: 84,
+    strongMatchThreshold: 96,
+    skipShortWordLength: 3,
+    requiredSequentialMatches: 2,
+    rejoinEnabled: true,
+    rejoinLookaheadWindow: 18,
+    rejoinSequenceLength: 3,
+    rejoinConfidenceThreshold: 82,
+    rejoinMaxGapInSpeech: 2,
+    rejoinCooldown: 1,
+  };
+  if (typeof window === 'undefined' || typeof window.prompterMatchTuning !== 'object' || window.prompterMatchTuning === null)
+    return defaults;
+  return {
+    shortWordThreshold: window.prompterMatchTuning.shortWordThreshold || defaults.shortWordThreshold,
+    mediumWordThreshold: window.prompterMatchTuning.mediumWordThreshold || defaults.mediumWordThreshold,
+    longWordThreshold: window.prompterMatchTuning.longWordThreshold || defaults.longWordThreshold,
+    strongMatchThreshold: window.prompterMatchTuning.strongMatchThreshold || defaults.strongMatchThreshold,
+    skipShortWordLength: window.prompterMatchTuning.skipShortWordLength || defaults.skipShortWordLength,
+    requiredSequentialMatches: window.prompterMatchTuning.requiredSequentialMatches || defaults.requiredSequentialMatches,
+    rejoinEnabled: typeof window.prompterMatchTuning.rejoinEnabled === 'boolean' ? window.prompterMatchTuning.rejoinEnabled : defaults.rejoinEnabled,
+    rejoinLookaheadWindow: window.prompterMatchTuning.rejoinLookaheadWindow || defaults.rejoinLookaheadWindow,
+    rejoinSequenceLength: window.prompterMatchTuning.rejoinSequenceLength || defaults.rejoinSequenceLength,
+    rejoinConfidenceThreshold: window.prompterMatchTuning.rejoinConfidenceThreshold || defaults.rejoinConfidenceThreshold,
+    rejoinMaxGapInSpeech: window.prompterMatchTuning.rejoinMaxGapInSpeech || defaults.rejoinMaxGapInSpeech,
+    rejoinCooldown: window.prompterMatchTuning.rejoinCooldown || defaults.rejoinCooldown,
+  };
+}
+
+function hasStrongBacktrackEvidence(currentRecording, currentMatchArray, speechPosition, currentPosition, newPosition) {
+  if (newPosition >= currentPosition)
+    return true;
+  let consecutive = 0;
+  for (let i = max(0, speechPosition - 4); i < min(currentRecording.length, speechPosition + 1); i++) {
+    if (i >= currentMatchArray.length)
+      continue;
+    const matchIdx = currentMatchArray[i][1][0];
+    const matchScore = currentMatchArray[i][1][1];
+    if (matchIdx >= newPosition && matchIdx < currentPosition && matchScore >= 0.92)
+      consecutive++;
+  }
+  return consecutive >= 2;
 }

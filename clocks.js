@@ -1,72 +1,91 @@
 let timer;
 let isPaused = false;
-let remainingSeconds; // This will keep track of the remaining seconds when paused
+let remainingSeconds = 0;
 
-document.getElementById('start-timer').addEventListener('click', function() {
+const startTimerButton = document.getElementById('start-timer');
+const pauseTimerButton = document.getElementById('pause-timer');
+const stopTimerButton = document.getElementById('stop-timer');
+
+if (startTimerButton) {
+  startTimerButton.addEventListener('click', function() {
     if (isPaused) {
-        isPaused = false;
-        this.style.display = 'none';
-        document.getElementById('pause-timer').style.display = 'inline';
-        startTimer(remainingSeconds); // Resume with remaining seconds
-    } else {
-        const minutes = parseInt(document.getElementById('minutes').value) || 0;
-        const seconds = parseInt(document.getElementById('seconds').value) || 0;
-        remainingSeconds = minutes * 60 + seconds;
-        startTimer(remainingSeconds);
+      isPaused = false;
+      this.style.display = 'none';
+      if (pauseTimerButton) pauseTimerButton.style.display = 'inline';
+      startTimer(remainingSeconds);
+      return;
     }
-});
+    const minutesInput = document.getElementById('minutes');
+    const secondsInput = document.getElementById('seconds');
+    const minutes = minutesInput ? parseInt(minutesInput.value) || 0 : 0;
+    const seconds = secondsInput ? parseInt(secondsInput.value) || 0 : 0;
+    remainingSeconds = minutes * 60 + seconds;
+    startTimer(remainingSeconds);
+  });
+}
 
-document.getElementById('pause-timer').addEventListener('click', function() {
+if (pauseTimerButton) {
+  pauseTimerButton.addEventListener('click', function() {
     isPaused = true;
     this.style.display = 'none';
-    document.getElementById('start-timer').style.display = 'inline';
+    if (startTimerButton) startTimerButton.style.display = 'inline';
     clearInterval(timer);
-});
+  });
+}
 
-document.getElementById('stop-timer').addEventListener('click', function() {
+if (stopTimerButton) {
+  stopTimerButton.addEventListener('click', function() {
     clearInterval(timer);
     resetTimer();
-});
+  });
+}
 
 function startTimer(seconds) {
-    remainingSeconds = seconds;
+  clearInterval(timer);
+  remainingSeconds = seconds;
 
-    document.getElementById('start-timer').style.display = 'none';
-    document.getElementById('pause-timer').style.display = 'inline';
-    document.getElementById('stop-timer').style.display = 'inline';
+  if (startTimerButton) startTimerButton.style.display = 'none';
+  if (pauseTimerButton) pauseTimerButton.style.display = 'inline';
+  if (stopTimerButton) stopTimerButton.style.display = 'inline';
 
-    timer = setInterval(function() {
-        if (remainingSeconds <= 0) {
-            clearInterval(timer);
-            resetTimer();
-            alert('Time is up!');
-            return;
-        }
+  timer = setInterval(function() {
+    if (remainingSeconds <= 0) {
+      clearInterval(timer);
+      resetTimer();
+      if (window.prompter && typeof window.prompter.addMessage === 'function')
+        window.prompter.addMessage('info', 'El temporizador llegó a cero.');
+      return;
+    }
 
-        const minutes = parseInt(remainingSeconds / 60, 10);
-        const seconds = parseInt(remainingSeconds % 60, 10);
-
-        document.getElementById('time-display').textContent = formatTime(minutes) + ":" + formatTime(seconds);
-        remainingSeconds -= 1;
-    }, 1000);
+    const minutes = parseInt(remainingSeconds / 60, 10);
+    const seconds = parseInt(remainingSeconds % 60, 10);
+    const timeDisplay = document.getElementById('time-display');
+    if (timeDisplay)
+      timeDisplay.textContent = formatTime(minutes) + ':' + formatTime(seconds);
+    remainingSeconds -= 1;
+  }, 1000);
 }
 
 function resetTimer() {
-    document.getElementById('time-display').textContent = "00:00";
-    document.getElementById('minutes').value = '';
-    document.getElementById('seconds').value = '';
-    document.getElementById('start-timer').style.display = 'inline';
-    document.getElementById('pause-timer').style.display = 'none';
-    document.getElementById('stop-timer').style.display = 'none';
-    isPaused = false;
-    remainingSeconds = 0; // Reset the remaining seconds
+  const timeDisplay = document.getElementById('time-display');
+  const minutesInput = document.getElementById('minutes');
+  const secondsInput = document.getElementById('seconds');
+  if (timeDisplay) timeDisplay.textContent = '00:00';
+  if (minutesInput) minutesInput.value = '';
+  if (secondsInput) secondsInput.value = '';
+  if (startTimerButton) startTimerButton.style.display = 'inline';
+  if (pauseTimerButton) pauseTimerButton.style.display = 'none';
+  if (stopTimerButton) stopTimerButton.style.display = 'none';
+  isPaused = false;
+  remainingSeconds = 0;
 }
 
 function formatTime(time) {
-    return time < 10 ? "0" + time : time;
+  return time < 10 ? '0' + time : time;
 }
+
 let stopwatchInterval;
-let stopwatchElapsed = 0; // Time in milliseconds
+let stopwatchElapsed = 0;
 let stopwatchRunning = false;
 
 function formatStopwatch(milliseconds) {
@@ -84,10 +103,13 @@ function pad(number, length) {
 }
 
 function updateStopwatchDisplay() {
-  document.getElementById('stopwatch-display').textContent = formatStopwatch(stopwatchElapsed);
+  const stopwatchDisplay = document.getElementById('stopwatch-display');
+  if (stopwatchDisplay)
+    stopwatchDisplay.textContent = formatStopwatch(stopwatchElapsed);
 }
 
 function startStopwatch() {
+  clearInterval(stopwatchInterval);
   const startTime = Date.now() - stopwatchElapsed;
   stopwatchInterval = setInterval(() => {
     stopwatchElapsed = Date.now() - startTime;
@@ -107,5 +129,3 @@ function resetStopwatch() {
   updateStopwatchDisplay();
   stopwatchRunning = false;
 }
-
-// Remove event listeners from here and integrate into Teleprompter.js

@@ -1,0 +1,9 @@
+{
+  "name": "echo-prompter-local",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local runner for Echo-Prompter",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
