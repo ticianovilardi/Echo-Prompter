@@ -47,6 +47,7 @@ class Teleprompter {
     this.textLineHeight = 1.25;
     this.fontWeight = 400;
     this.textAlign = 'center';
+    this.shortcuts = this.getDefaultShortcuts();
     this.dirtyPrompt = false;
     this.pendingPromptDraft = '';
     this.quickSettingsPreviouslyFocused = null;
@@ -57,6 +58,14 @@ class Teleprompter {
       this.editorEl.value = this.text;
     if (this.readingEditorEl)
       this.readingEditorEl.value = this.text;
+    if (this.dirtyPrompt && this.pendingPromptDraft !== '') {
+      this.text = this.pendingPromptDraft;
+      this.updateActiveScriptText(this.text);
+      if (this.editorEl)
+        this.editorEl.value = this.text;
+      if (this.readingEditorEl)
+        this.readingEditorEl.value = this.text;
+    }
     if (this.scriptTitleEl)
       this.scriptTitleEl.value = this.getActiveTextTitle();
     this.adaptText();
@@ -101,6 +110,11 @@ class Teleprompter {
     }
     window.addEventListener('resize', () => this.applySettings());
     document.addEventListener('visibilitychange', () => this.handleVisibilityChange());
+    document.addEventListener('fullscreenchange', () => {
+      this.cleanMode = !!document.fullscreenElement;
+      document.body.classList.toggle('clean-reader', this.cleanMode);
+      this.applySettings();
+    });
     window.addEventListener('focus', () => this.resumeRecognitionAfterInterruption());
     this.bindLibraryEvents();
     window.addEventListener('beforeunload', evt => this.handleBeforeUnload(evt));
@@ -120,8 +134,12 @@ class Teleprompter {
     this.readerFollowStatusEl = document.getElementById('reader-follow-status');
     this.readerBackendStatusEl = document.getElementById('reader-backend-status');
     this.readerProgressFillEl = document.getElementById('reader-progress-fill');
+    this.readerProgressFillFloatingEl = document.getElementById('reader-progress-fill-floating');
     this.readerProgressPercentEl = document.getElementById('reader-progress-percent');
+    this.readerProgressPercentFloatingEl = document.getElementById('reader-progress-percent-floating');
     this.readerProgressMetaEl = document.getElementById('reader-progress-meta');
+    this.readerProgressMetaChipEl = document.getElementById('reader-progress-meta-chip');
+    this.readerSessionStatusChipEl = document.getElementById('reader-session-status-chip');
     this.playToggleEl = document.getElementById('reader-play-toggle');
     this.cleanToggleEl = document.getElementById('reader-clean-toggle');
     this.readerMicStatusOverlayEl = document.getElementById('reader-mic-status-overlay');
@@ -146,6 +164,10 @@ class Teleprompter {
     this.quickHighlightColorEl = document.getElementById('quick-highlight-color');
     this.quickTextColorEl = document.getElementById('quick-text-color');
     this.quickTextAlignEl = document.getElementById('quick-text-align');
+    this.shortcutPlayPauseEl = document.getElementById('shortcut-play-pause');
+    this.shortcutRestartEl = document.getElementById('shortcut-restart');
+    this.shortcutFullscreenEl = document.getElementById('shortcut-fullscreen');
+    this.shortcutEditEl = document.getElementById('shortcut-edit');
     this.messagesEl = document.getElementById('messages');
     this.currentFile = (window.location.pathname.split('/').pop() || 'index.html').toLowerCase();
   }
@@ -154,6 +176,7 @@ class Teleprompter {
     const readerRestartEl = document.getElementById('reader-restart');
     const openQuickPanelTopEl = document.getElementById('reader-open-quick-panel');
     const openQuickPanelBottomEl = document.getElementById('reader-open-quick-panel-bottom');
+    const openSettingsModalEl = document.getElementById('reader-open-settings-modal');
     const quickSettingsCloseEl = document.getElementById('quick-settings-close');
     const useInReaderEl = document.getElementById('use-script-in-reader');
     const prevEl = document.getElementById('prev');
@@ -167,11 +190,17 @@ class Teleprompter {
     if (this.playToggleEl)
       this.playToggleEl.addEventListener('click', () => this.togglePlayback());
     if (this.cleanToggleEl)
-      this.cleanToggleEl.addEventListener('click', () => this.toggleCleanMode());
+      this.cleanToggleEl.addEventListener('click', () => this.toggleFullscreenMode());
     if (openQuickPanelTopEl)
       openQuickPanelTopEl.addEventListener('click', evt => this.openQuickSettings(evt.currentTarget));
     if (openQuickPanelBottomEl)
       openQuickPanelBottomEl.addEventListener('click', evt => this.openQuickSettings(evt.currentTarget));
+    if (openSettingsModalEl)
+      openSettingsModalEl.addEventListener('click', () => {
+        const settingsModal = document.getElementById('settings-modal');
+        if (settingsModal)
+          settingsModal.showModal();
+      });
     if (quickSettingsCloseEl)
       quickSettingsCloseEl.addEventListener('click', () => this.closeQuickSettings());
     if (this.quickSettingsBackdropEl)
@@ -181,10 +210,7 @@ class Teleprompter {
         if (evt.key === 'Escape')
           this.closeQuickSettings();
       });
-    document.addEventListener('keydown', evt => {
-      if (evt.key === 'Escape' && this.quickSettingsPanelEl && this.quickSettingsPanelEl.classList.contains('is-open'))
-        this.closeQuickSettings();
-    });
+    document.addEventListener('keydown', evt => this.handleGlobalShortcut(evt));
     if (prevEl)
       prevEl.addEventListener('click', () => this.showPrevious());
     if (nextEl)
@@ -230,6 +256,12 @@ class Teleprompter {
     const highlightColorEl = document.getElementById('highlight-color');
     const followLagEl = document.getElementById('follow-lag');
     const restoreDefaultsEl = document.getElementById('restore-defaults');
+    const shortcutFields = [
+      this.shortcutPlayPauseEl,
+      this.shortcutRestartEl,
+      this.shortcutFullscreenEl,
+      this.shortcutEditEl,
+    ];
 
     if (readingPositionEl) {
       readingPositionEl.addEventListener('change', evt => {
@@ -291,6 +323,12 @@ class Teleprompter {
     }
     if (restoreDefaultsEl)
       restoreDefaultsEl.addEventListener('click', () => this.restoreDefaultSettings());
+    for (let i = 0; i < shortcutFields.length; i++) {
+      if (!shortcutFields[i])
+        continue;
+      shortcutFields[i].addEventListener('keydown', evt => this.captureShortcutInput(evt));
+      shortcutFields[i].addEventListener('blur', () => this.syncShortcutInputs());
+    }
     if (this.quickTextSizeEl) {
       this.quickTextSizeEl.addEventListener('input', evt => {
         this.size = parseInt(evt.target.value);
@@ -775,6 +813,7 @@ class Teleprompter {
     this.fontWeight = 400;
     this.textAlign = 'center';
     this.matchTuning = this.getDefaultMatchTuning();
+    this.shortcuts = this.getDefaultShortcuts();
     this.speechBackendStatus = 'Web Speech API ready';
   }
 
@@ -806,6 +845,7 @@ class Teleprompter {
       this.fontWeight = storedSettings.fontWeight || this.fontWeight;
       this.textAlign = storedSettings.textAlign || this.textAlign;
       this.matchTuning = this.normalizeMatchTuning(storedSettings.matchTuning);
+      this.shortcuts = this.normalizeShortcuts(storedSettings.shortcuts);
     }
     if (storedDraft && typeof storedDraft === 'object') {
       this.dirtyPrompt = !!storedDraft.isDirty;
@@ -837,26 +877,60 @@ class Teleprompter {
     localStorage.setItem('fontWeight', JSON.stringify(this.fontWeight));
     localStorage.setItem('textAlign', JSON.stringify(this.textAlign));
     localStorage.setItem('matchTuning', JSON.stringify(this.matchTuning));
+    this.writeStorage(this.storageKeys.settings, {
+      lang: this.lang,
+      bg: this.bg,
+      fg: this.fg,
+      size: this.size,
+      font: this.font,
+      margin: this.margin,
+      mirrorv: this.mirrorv,
+      mirrorh: this.mirrorh,
+      showrec: this.showrec,
+      readingPosition: this.readingPosition,
+      readingTopMargin: this.readingTopMargin,
+      readingTopLines: this.readingTopLines,
+      highlightColor: this.highlightColor,
+      followLag: this.followLag,
+      textBoxWidth: this.textBoxWidth,
+      textLineHeight: this.textLineHeight,
+      fontWeight: this.fontWeight,
+      textAlign: this.textAlign,
+      matchTuning: this.matchTuning,
+      shortcuts: this.shortcuts,
+    });
     window.prompterMatchTuning = this.matchTuning;
-    if (document.activeElement !== this.scriptTitleEl)
+    if (this.scriptTitleEl && document.activeElement !== this.scriptTitleEl)
       this.scriptTitleEl.value = this.getActiveTextTitle();
-    if (document.activeElement !== this.editorEl && this.editorEl.value !== this.text)
+    if (this.editorEl && document.activeElement !== this.editorEl && this.editorEl.value !== this.text)
       this.editorEl.value = this.text;
-    if (this.readingEditorEl.value !== this.text)
+    if (this.readingEditorEl && this.readingEditorEl.value !== this.text)
       this.readingEditorEl.value = this.text;
     document.getElementById('script-library-status').textContent = this.getLibraryStatus();
     this.renderTextLibrary();
-    document.getElementById('mic_status').textContent = this.micStatus;
+    const micStatusEl = document.getElementById('mic_status');
+    const readingPositionEl = document.getElementById('reading-position');
+    const readingTopMarginEl = document.getElementById('reading-top-margin');
+    const readingTopMarginValueEl = document.getElementById('reading-top-margin-value');
+    const readingTopLinesEl = document.getElementById('reading-top-lines');
+    const readingTopLinesValueEl = document.getElementById('reading-top-lines-value');
+    const highlightColorEl = document.getElementById('highlight-color');
+    const followLagEl = document.getElementById('follow-lag');
+    const followLagValueEl = document.getElementById('follow-lag-value');
+    if (micStatusEl)
+      micStatusEl.textContent = this.micStatus;
     document.getElementById('reading-position').value = this.readingPosition;
     document.getElementById('reading-top-margin').value = this.readingTopMargin;
     document.getElementById('reading-top-margin-value').textContent = `${this.readingTopMargin}px`;
     document.getElementById('reading-top-lines').value = this.readingTopLines;
     document.getElementById('reading-top-lines-value').textContent = `${this.readingTopLines} línea${this.readingTopLines === 1 ? '' : 's'}`;
-    document.getElementById('highlight-color').value = this.rgbToHex(this.highlightColor);
+    if (highlightColorEl)
+      highlightColorEl.value = this.rgbToHex(this.highlightColor);
     document.getElementById('follow-lag').value = this.followLag;
     document.getElementById('follow-lag-value').textContent = `${this.followLag} palabra${this.followLag === 1 ? '' : 's'}`;
     this.syncMatchTuningInputs();
     this.syncDesignControlInputs();
+    this.syncShortcutInputs();
     this.syncRouteUi();
     this.syncLanguageSelectors();
     this.showRecToggleEl.checked = this.showrec;
@@ -864,14 +938,23 @@ class Teleprompter {
     this.mirrorVToggleEl.checked = this.mirrorv;
     const progress = this.getReaderProgress();
     this.readerProgressFillEl.style.width = `${progress.percent}%`;
+    if (this.readerProgressFillFloatingEl)
+      this.readerProgressFillFloatingEl.style.width = `${progress.percent}%`;
     this.readerProgressPercentEl.textContent = `${progress.percent}%`;
+    if (this.readerProgressPercentFloatingEl)
+      this.readerProgressPercentFloatingEl.textContent = `${progress.percent}%`;
     this.readerProgressMetaEl.textContent = `${progress.current} de ${progress.total} palabras`;
+    if (this.readerProgressMetaChipEl)
+      this.readerProgressMetaChipEl.textContent = `${progress.current} de ${progress.total} palabras`;
     this.sidebarProgressEl.textContent = `${progress.percent}%`;
     this.readerMicStatusEl.textContent = this.micStatus;
     this.readerLanguageStatusEl.textContent = this.lang;
     this.readerFollowStatusEl.textContent = `${this.followLag} palabra${this.followLag === 1 ? '' : 's'}`;
     this.readerBackendStatusEl.textContent = this.speechBackendStatus;
-    this.sidebarMicEl.textContent = this.getSessionStatusLabel();
+    const sessionStatus = this.getSessionStatusLabel();
+    this.sidebarMicEl.textContent = sessionStatus;
+    if (this.readerSessionStatusChipEl)
+      this.readerSessionStatusChipEl.textContent = sessionStatus;
     this.activeScriptLabelEl.textContent = this.getActiveTextTitle() || 'Sin título';
     this.sidebarTitleEl.textContent = this.getActiveTextTitle() || 'Sin título';
     this.sidebarPreviewEl.textContent = this.getScriptPreview(this.text);
@@ -887,6 +970,15 @@ class Teleprompter {
     this.quickHighlightColorEl.value = this.rgbToHex(this.highlightColor);
     this.quickTextColorEl.value = this.rgbToHex(this.fg);
     this.quickTextAlignEl.value = this.textAlign;
+    if (this.editorDirtyStateEl) {
+      this.editorDirtyStateEl.textContent = this.dirtyPrompt ? 'Sin guardar' : 'Guardado';
+      this.editorDirtyStateEl.classList.toggle('dirty', this.dirtyPrompt);
+      this.editorDirtyStateEl.classList.toggle('saved', !this.dirtyPrompt);
+    }
+    if (this.editorWordCountEl) {
+      const wordCount = this.text.trim() === '' ? 0 : this.text.trim().split(/\s+/).filter(Boolean).length;
+      this.editorWordCountEl.textContent = `${wordCount} pal.`;
+    }
     document.body.classList.toggle('clean-reader', this.cleanMode);
     if (!this.play && !this.edit) {
       if (this.lang.search(/^en-(AU|CA|IN|KE|TZ|GH|NZ|NG|ZA|PH|GB|US)$/) != -1) {
@@ -1050,11 +1142,40 @@ class Teleprompter {
     return 'Listo';
   }
 
+  markPromptDirty() {
+    this.dirtyPrompt = true;
+    this.pendingPromptDraft = this.editorEl ? this.editorEl.value : this.text;
+    this.persistDraftState();
+    this.applySettings();
+  }
+
+  clearPromptDirtyState() {
+    this.dirtyPrompt = false;
+    this.pendingPromptDraft = '';
+    this.persistDraftState();
+  }
+
+  persistDraftState() {
+    localStorage.setItem(this.storageKeys.dirtyDraft, JSON.stringify({
+      isDirty: this.dirtyPrompt,
+      text: this.pendingPromptDraft,
+    }));
+  }
+
+  handleBeforeUnload(evt) {
+    this.persistDraftState();
+    if (!this.dirtyPrompt)
+      return;
+    evt.preventDefault();
+    evt.returnValue = '';
+  }
+
   syncPromptEditors() {
     this.text = this.editorEl.value;
     this.readingEditorEl.value = this.text;
     this.updateActiveScriptText(this.text);
     this.adaptText();
+    this.markPromptDirty();
     this.applySettings();
   }
 
@@ -1085,6 +1206,145 @@ class Teleprompter {
     this.cleanMode = !this.cleanMode;
     document.body.classList.toggle('clean-reader', this.cleanMode);
     this.applySettings();
+  }
+
+  async toggleFullscreenMode() {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+        this.cleanMode = false;
+      } else {
+        const surface = document.getElementById('reader-surface') || document.documentElement;
+        if (surface.requestFullscreen)
+          await surface.requestFullscreen();
+        this.cleanMode = true;
+      }
+      document.body.classList.toggle('clean-reader', this.cleanMode);
+      this.applySettings();
+    } catch (error) {
+      this.addMessage('warning', 'No se pudo cambiar el modo pantalla completa desde este navegador.');
+    }
+  }
+
+  handleGlobalShortcut(evt) {
+    if (!this.hasReaderSurface())
+      return;
+    if (evt.repeat)
+      return;
+    if (this.isTypingShortcutTarget(evt.target))
+      return;
+    if (this.isDialogOpen())
+      return;
+    if (this.matchesShortcut(evt, this.shortcuts.playPause)) {
+      evt.preventDefault();
+      this.togglePlayback();
+      return;
+    }
+    if (this.matchesShortcut(evt, this.shortcuts.restart)) {
+      evt.preventDefault();
+      this.restartReading();
+      return;
+    }
+    if (this.matchesShortcut(evt, this.shortcuts.fullscreen)) {
+      evt.preventDefault();
+      if (this.quickSettingsPanelEl && this.quickSettingsPanelEl.classList.contains('is-open'))
+        this.closeQuickSettings();
+      else if (document.fullscreenElement || this.shortcuts.fullscreen !== 'Escape')
+        this.toggleFullscreenMode();
+      else
+        this.toggleCleanMode();
+      return;
+    }
+    if (this.matchesShortcut(evt, this.shortcuts.edit)) {
+      evt.preventDefault();
+      this.settingsClick('edit');
+    }
+  }
+
+  isDialogOpen() {
+    const openDialog = document.querySelector('dialog[open]');
+    return openDialog !== null;
+  }
+
+  isTypingShortcutTarget(target) {
+    if (!target || !target.tagName)
+      return false;
+    if (target.dataset && target.dataset.shortcutInput === 'true')
+      return false;
+    const tag = target.tagName.toUpperCase();
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
+  }
+
+  getDefaultShortcuts() {
+    return {
+      playPause: 'Space',
+      restart: 'KeyR',
+      fullscreen: 'Escape',
+      edit: 'KeyE',
+    };
+  }
+
+  normalizeShortcuts(shortcuts) {
+    const defaults = this.getDefaultShortcuts();
+    return {
+      playPause: this.normalizeShortcutValue(shortcuts && shortcuts.playPause, defaults.playPause),
+      restart: this.normalizeShortcutValue(shortcuts && shortcuts.restart, defaults.restart),
+      fullscreen: this.normalizeShortcutValue(shortcuts && shortcuts.fullscreen, defaults.fullscreen),
+      edit: this.normalizeShortcutValue(shortcuts && shortcuts.edit, defaults.edit),
+    };
+  }
+
+  normalizeShortcutValue(value, fallback) {
+    return typeof value === 'string' && value.trim() !== '' ? value.trim() : fallback;
+  }
+
+  matchesShortcut(evt, shortcutCode) {
+    return evt.code === shortcutCode || evt.key === shortcutCode;
+  }
+
+  formatShortcutLabel(shortcutCode) {
+    const map = {
+      Space: 'Espacio',
+      Escape: 'Esc',
+      Enter: 'Enter',
+      Tab: 'Tab',
+      Backspace: 'Backspace',
+      ArrowUp: 'Flecha ↑',
+      ArrowDown: 'Flecha ↓',
+      ArrowLeft: 'Flecha ←',
+      ArrowRight: 'Flecha →',
+    };
+    if (map[shortcutCode])
+      return map[shortcutCode];
+    if (/^Key[A-Z]$/.test(shortcutCode))
+      return shortcutCode.slice(3);
+    if (/^Digit[0-9]$/.test(shortcutCode))
+      return shortcutCode.slice(5);
+    return shortcutCode;
+  }
+
+  captureShortcutInput(evt) {
+    evt.preventDefault();
+    evt.stopPropagation();
+    const shortcutName = evt.currentTarget.dataset.shortcutName;
+    if (!shortcutName)
+      return;
+    this.shortcuts = this.normalizeShortcuts({
+      ...this.shortcuts,
+      [shortcutName]: evt.code || evt.key,
+    });
+    this.applySettings();
+  }
+
+  syncShortcutInputs() {
+    if (this.shortcutPlayPauseEl)
+      this.shortcutPlayPauseEl.value = this.formatShortcutLabel(this.shortcuts.playPause);
+    if (this.shortcutRestartEl)
+      this.shortcutRestartEl.value = this.formatShortcutLabel(this.shortcuts.restart);
+    if (this.shortcutFullscreenEl)
+      this.shortcutFullscreenEl.value = this.formatShortcutLabel(this.shortcuts.fullscreen);
+    if (this.shortcutEditEl)
+      this.shortcutEditEl.value = this.formatShortcutLabel(this.shortcuts.edit);
   }
 
   openQuickSettings() {
@@ -1166,6 +1426,7 @@ class Teleprompter {
     this.updateActiveScriptText(this.text);
     this.renameActiveScript();
     this.adaptText();
+    this.clearPromptDirtyState();
     const modal = document.getElementById('prompts-modal');
     if (modal) modal.close();
   }
@@ -1560,6 +1821,7 @@ class Teleprompter {
     if (this.readingEditorEl)
       this.readingEditorEl.value = this.text;
     this.adaptText();
+    this.clearPromptDirtyState();
     this.applySettings();
   }
 
@@ -1594,6 +1856,7 @@ class Teleprompter {
     if (this.readingEditorEl)
       this.readingEditorEl.value = this.text;
     this.adaptText();
+    this.clearPromptDirtyState();
     this.applySettings();
     if (this.scriptTitleEl)
       this.scriptTitleEl.focus();
@@ -1604,6 +1867,7 @@ class Teleprompter {
     this.updateActiveScriptText(this.text);
     this.renameActiveScript();
     this.adaptText();
+    this.clearPromptDirtyState();
     this.applySettings();
     this.addMessage('info', `Guardaste "${escapeHtml(this.getActiveTextTitle())}".`);
   }
@@ -1625,6 +1889,7 @@ class Teleprompter {
     if (this.readingEditorEl)
       this.readingEditorEl.value = this.text;
     this.adaptText();
+    this.clearPromptDirtyState();
     this.applySettings();
   }
 
@@ -1645,6 +1910,7 @@ class Teleprompter {
       if (this.readingEditorEl)
         this.readingEditorEl.value = this.text;
       this.adaptText();
+      this.clearPromptDirtyState();
       this.applySettings();
       this.addMessage('warning', 'Debe quedar al menos un prompt guardado.');
       return;
@@ -1663,6 +1929,7 @@ class Teleprompter {
     if (this.readingEditorEl)
       this.readingEditorEl.value = this.text;
     this.adaptText();
+    this.clearPromptDirtyState();
     this.applySettings();
   }
 }

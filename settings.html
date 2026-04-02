@@ -282,6 +282,33 @@
             </div>
           </div>
         </section>
+
+        <section class="workspace-panel settings-card settings-card-wide">
+          <div class="panel-head">
+            <div>
+              <p class="sidebar-label">Atajos</p>
+              <h3>Control por teclado</h3>
+            </div>
+          </div>
+          <div class="settings-fields shortcut-fields-grid">
+            <label class="field-group" for="shortcut-play-pause">
+              <span>Iniciar / pausar</span>
+              <input id="shortcut-play-pause" class="shortcut-input" type="text" value="Espacio" readonly data-shortcut-input="true" data-shortcut-name="playPause" aria-label="Atajo para iniciar o pausar">
+            </label>
+            <label class="field-group" for="shortcut-restart">
+              <span>Reiniciar</span>
+              <input id="shortcut-restart" class="shortcut-input" type="text" value="R" readonly data-shortcut-input="true" data-shortcut-name="restart" aria-label="Atajo para reiniciar">
+            </label>
+            <label class="field-group" for="shortcut-fullscreen">
+              <span>Pantalla completa / salir</span>
+              <input id="shortcut-fullscreen" class="shortcut-input" type="text" value="Esc" readonly data-shortcut-input="true" data-shortcut-name="fullscreen" aria-label="Atajo para entrar o salir de pantalla completa">
+            </label>
+            <label class="field-group" for="shortcut-edit">
+              <span>Editar prompt</span>
+              <input id="shortcut-edit" class="shortcut-input" type="text" value="E" readonly data-shortcut-input="true" data-shortcut-name="edit" aria-label="Atajo para editar el prompt">
+            </label>
+          </div>
+        </section>
       </section>
 
       <div id="messages" class="toast-stack" aria-live="polite"></div>

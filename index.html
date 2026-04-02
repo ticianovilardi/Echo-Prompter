@@ -77,9 +77,25 @@
 
             <!-- Controls Overlay -->
             <div class="reader-overlay-bottom">
-              <div class="glass-command-bar" id="reader-command-bar">
+              <div class="floating-teleprompter-console" id="reader-command-bar">
+                <div class="floating-console-main">
+                  <div class="floating-console-status">
+                    <span class="console-chip" id="reader-session-status-chip">Listo</span>
+                    <span class="console-chip console-chip-muted" id="reader-progress-meta-chip">0 de 0 palabras</span>
+                  </div>
+                  <div class="floating-console-progress">
+                    <div class="floating-progress-track" aria-hidden="true">
+                      <div id="reader-progress-fill-floating" class="floating-progress-fill"></div>
+                    </div>
+                    <strong id="reader-progress-percent-floating">0%</strong>
+                  </div>
+                </div>
+                <div class="floating-console-actions">
                 <button id="reader-open-quick-panel-bottom" type="button" class="btn-glass icon-only" title="Ajustes visuales rápidos">
                   <i class="fa-solid fa-font"></i>
+                </button>
+                <button id="reader-open-settings-modal" type="button" class="btn-glass icon-only" title="Ajustes del teleprompter">
+                  <i class="fa-solid fa-sliders"></i>
                 </button>
                 <button id="reader-restart" type="button" class="btn-glass icon-only" title="Reiniciar lectura">
                   <i class="fa-solid fa-rotate-left"></i>
@@ -93,6 +109,7 @@
                 <button id="reader-edit-quick" type="button" class="btn-glass icon-only" title="Editar en pantalla" onclick="window.prompter.settingsClick('edit')">
                   <i class="fa-solid fa-pen"></i>
                 </button>
+                </div>
               </div>
             </div>
             
@@ -163,7 +180,7 @@
     </main>
 
     <!-- Prompts Modal -->
-    <dialog id="prompts-modal" class="studio-modal">
+    <dialog id="prompts-modal" class="studio-modal studio-modal-large">
       <div class="modal-content large-modal">
         <div class="modal-header">
           <h3><i class="fa-solid fa-book-open text-accent"></i> Biblioteca de Prompts</h3>
@@ -173,6 +190,10 @@
           <!-- Library List -->
           <div class="library-sidebar">
             <div class="library-tools">
+              <div class="library-section-heading">
+                <span class="section-kicker">Biblioteca</span>
+                <strong>Tus prompts listos para usar</strong>
+              </div>
               <div class="search-box">
                 <i class="fa-solid fa-magnifying-glass"></i>
                 <input id="script-search" type="search" placeholder="Buscar guiones...">
@@ -208,7 +229,7 @@
     </dialog>
 
     <!-- Settings Modal -->
-    <dialog id="settings-modal" class="studio-modal">
+    <dialog id="settings-modal" class="studio-modal studio-modal-wide">
       <div class="modal-content">
         <div class="modal-header">
           <h3><i class="fa-solid fa-sliders text-accent"></i> Ajustes de Prompty</h3>
@@ -253,6 +274,10 @@
                 <input id="reading-top-margin" type="number" min="0" max="600" step="10" value="140" class="modern-input">
               </label>
             </div>
+            <label class="field-group">
+              <span>Color de progreso</span>
+              <input id="highlight-color" type="color" value="#53d3c1">
+            </label>
             <div class="toggles-group">
                <label class="toggle-row">
                  <span>Mostrar texto detectado</span>
@@ -296,6 +321,28 @@
             </details>
           </div>
 
+          <div class="settings-card full-width">
+            <h4><i class="fa-regular fa-keyboard"></i> Atajos de teclado</h4>
+            <div class="shortcut-fields-grid">
+              <label class="field-group">
+                <span>Iniciar / pausar</span>
+                <input id="shortcut-play-pause" class="modern-input shortcut-input" type="text" value="Espacio" readonly data-shortcut-input="true" data-shortcut-name="playPause" aria-label="Atajo para iniciar o pausar">
+              </label>
+              <label class="field-group">
+                <span>Reiniciar</span>
+                <input id="shortcut-restart" class="modern-input shortcut-input" type="text" value="R" readonly data-shortcut-input="true" data-shortcut-name="restart" aria-label="Atajo para reiniciar">
+              </label>
+              <label class="field-group">
+                <span>Pantalla completa / salir</span>
+                <input id="shortcut-fullscreen" class="modern-input shortcut-input" type="text" value="Esc" readonly data-shortcut-input="true" data-shortcut-name="fullscreen" aria-label="Atajo para entrar o salir de pantalla completa">
+              </label>
+              <label class="field-group">
+                <span>Editar prompt</span>
+                <input id="shortcut-edit" class="modern-input shortcut-input" type="text" value="E" readonly data-shortcut-input="true" data-shortcut-name="edit" aria-label="Atajo para editar el prompt">
+              </label>
+            </div>
+          </div>
+
         </div>
         <div class="modal-footer">
           <button id="restore-defaults" class="btn-ghost text-muted"><i class="fa-solid fa-rotate-left"></i> Valores de fábrica</button>
@@ -327,9 +374,6 @@
       <input id="highlight-color-live" type="color" value="#53d3c1">
       <input id="text-color-live" type="color" value="#f2f2f2">
       <input id="quick-line-height" type="range" value="125">
-      <input id="reading-top-margin" type="number" value="140">
-      <input id="reading-top-lines" type="number" value="2">
-      <input id="highlight-color" type="color" value="#53d3c1">
     </div>
   </div>
 
@@ -355,7 +399,6 @@
       document.getElementById('close-settings-modal').addEventListener('click', () => {
         document.getElementById('settings-modal').close();
       });
-
       // Quick settings fix mapping (since JS expects specific IDs)
       const qlh = document.getElementById('quick-text-line-height');
       const realQlh = document.getElementById('quick-line-height');
