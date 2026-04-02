@@ -255,6 +255,21 @@ html, body {
   min-height: 0;
 }
 
+.reader-surface:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.reader-surface:fullscreen .reader-stage,
+.reader-surface:fullscreen #teleprompter,
+.reader-surface:fullscreen #play_div,
+.reader-surface:fullscreen #edit_text_div {
+  height: 100vh;
+}
+
 .reader-stage {
   flex-grow: 1;
   position: relative;
@@ -535,6 +550,34 @@ html, body {
 }
 .field-group span {
   font-size: 0.9rem; font-weight: 600; color: var(--text-secondary);
+}
+.quick-field-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.quick-field-value {
+  min-width: 56px;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-heading);
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.quick-padding-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
 }
 .field-row { display: flex; gap: 1rem; }
 .flex-1 { flex: 1; }

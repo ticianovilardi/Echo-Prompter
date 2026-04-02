@@ -45,6 +45,10 @@ class Teleprompter {
     this.scrollFollowTarget = 0;
     this.textBoxWidth = 84;
     this.textLineHeight = 1.25;
+    this.paddingTop = 96;
+    this.paddingRight = 56;
+    this.paddingBottom = 160;
+    this.paddingLeft = 56;
     this.fontWeight = 400;
     this.textAlign = 'center';
     this.shortcuts = this.getDefaultShortcuts();
@@ -159,8 +163,20 @@ class Teleprompter {
     this.quickSettingsBackdropEl = document.getElementById('quick-settings-backdrop');
     this.quickSettingsPanelEl = document.getElementById('quick-settings-panel');
     this.quickTextSizeEl = document.getElementById('quick-text-size');
+    this.quickTextSizeValueEl = document.getElementById('quick-text-size-value');
     this.quickTextWidthEl = document.getElementById('quick-text-width');
+    this.quickTextWidthValueEl = document.getElementById('quick-text-width-value');
     this.quickLineHeightEl = document.getElementById('quick-line-height');
+    this.quickLineHeightValueEl = document.getElementById('quick-line-height-value');
+    this.quickPaddingTopEl = document.getElementById('quick-padding-top');
+    this.quickPaddingTopValueEl = document.getElementById('quick-padding-top-value');
+    this.quickPaddingRightEl = document.getElementById('quick-padding-right');
+    this.quickPaddingRightValueEl = document.getElementById('quick-padding-right-value');
+    this.quickPaddingBottomEl = document.getElementById('quick-padding-bottom');
+    this.quickPaddingBottomValueEl = document.getElementById('quick-padding-bottom-value');
+    this.quickPaddingLeftEl = document.getElementById('quick-padding-left');
+    this.quickPaddingLeftValueEl = document.getElementById('quick-padding-left-value');
+    this.quickFontFamilyEl = document.getElementById('quick-font-family');
     this.quickHighlightColorEl = document.getElementById('quick-highlight-color');
     this.quickTextColorEl = document.getElementById('quick-text-color');
     this.quickTextAlignEl = document.getElementById('quick-text-align');
@@ -344,6 +360,36 @@ class Teleprompter {
     if (this.quickLineHeightEl) {
       this.quickLineHeightEl.addEventListener('input', evt => {
         this.textLineHeight = parseInt(evt.target.value) / 100;
+        this.applySettings();
+      });
+    }
+    if (this.quickPaddingTopEl) {
+      this.quickPaddingTopEl.addEventListener('input', evt => {
+        this.paddingTop = parseInt(evt.target.value);
+        this.applySettings();
+      });
+    }
+    if (this.quickPaddingRightEl) {
+      this.quickPaddingRightEl.addEventListener('input', evt => {
+        this.paddingRight = parseInt(evt.target.value);
+        this.applySettings();
+      });
+    }
+    if (this.quickPaddingBottomEl) {
+      this.quickPaddingBottomEl.addEventListener('input', evt => {
+        this.paddingBottom = parseInt(evt.target.value);
+        this.applySettings();
+      });
+    }
+    if (this.quickPaddingLeftEl) {
+      this.quickPaddingLeftEl.addEventListener('input', evt => {
+        this.paddingLeft = parseInt(evt.target.value);
+        this.applySettings();
+      });
+    }
+    if (this.quickFontFamilyEl) {
+      this.quickFontFamilyEl.addEventListener('change', evt => {
+        this.font = evt.target.value;
         this.applySettings();
       });
     }
@@ -800,6 +846,10 @@ class Teleprompter {
     this.size = 120;
     this.font = "'Instrument Sans', sans-serif";
     this.margin = 56;
+    this.paddingTop = 96;
+    this.paddingRight = 56;
+    this.paddingBottom = 160;
+    this.paddingLeft = 56;
     this.mirrorv = false;
     this.mirrorh = false;
     this.showrec = true;
@@ -832,6 +882,10 @@ class Teleprompter {
       this.size = storedSettings.size || this.size;
       this.font = storedSettings.font || this.font;
       this.margin = storedSettings.margin || this.margin;
+      this.paddingTop = storedSettings.paddingTop ?? this.paddingTop;
+      this.paddingRight = storedSettings.paddingRight ?? this.margin;
+      this.paddingBottom = storedSettings.paddingBottom ?? this.paddingBottom;
+      this.paddingLeft = storedSettings.paddingLeft ?? this.margin;
       this.mirrorv = typeof storedSettings.mirrorv === 'boolean' ? storedSettings.mirrorv : this.mirrorv;
       this.mirrorh = typeof storedSettings.mirrorh === 'boolean' ? storedSettings.mirrorh : this.mirrorh;
       this.showrec = typeof storedSettings.showrec === 'boolean' ? storedSettings.showrec : this.showrec;
@@ -884,6 +938,10 @@ class Teleprompter {
       size: this.size,
       font: this.font,
       margin: this.margin,
+      paddingTop: this.paddingTop,
+      paddingRight: this.paddingRight,
+      paddingBottom: this.paddingBottom,
+      paddingLeft: this.paddingLeft,
       mirrorv: this.mirrorv,
       mirrorh: this.mirrorh,
       showrec: this.showrec,
@@ -965,8 +1023,32 @@ class Teleprompter {
       ? '<i class="fa-solid fa-compress" aria-hidden="true"></i>'
       : '<i class="fa-solid fa-expand" aria-hidden="true"></i>';
     this.quickTextSizeEl.value = `${this.size}`;
+    if (this.quickTextSizeValueEl)
+      this.quickTextSizeValueEl.textContent = `${this.size} px`;
     this.quickTextWidthEl.value = `${this.textBoxWidth}`;
+    if (this.quickTextWidthValueEl)
+      this.quickTextWidthValueEl.textContent = `${this.textBoxWidth}%`;
     this.quickLineHeightEl.value = `${Math.round(this.textLineHeight * 100)}`;
+    if (this.quickLineHeightValueEl)
+      this.quickLineHeightValueEl.textContent = `${this.textLineHeight.toFixed(2)}x`;
+    if (this.quickPaddingTopEl)
+      this.quickPaddingTopEl.value = `${this.paddingTop}`;
+    if (this.quickPaddingTopValueEl)
+      this.quickPaddingTopValueEl.textContent = `${this.paddingTop} px`;
+    if (this.quickPaddingRightEl)
+      this.quickPaddingRightEl.value = `${this.paddingRight}`;
+    if (this.quickPaddingRightValueEl)
+      this.quickPaddingRightValueEl.textContent = `${this.paddingRight} px`;
+    if (this.quickPaddingBottomEl)
+      this.quickPaddingBottomEl.value = `${this.paddingBottom}`;
+    if (this.quickPaddingBottomValueEl)
+      this.quickPaddingBottomValueEl.textContent = `${this.paddingBottom} px`;
+    if (this.quickPaddingLeftEl)
+      this.quickPaddingLeftEl.value = `${this.paddingLeft}`;
+    if (this.quickPaddingLeftValueEl)
+      this.quickPaddingLeftValueEl.textContent = `${this.paddingLeft} px`;
+    if (this.quickFontFamilyEl)
+      this.quickFontFamilyEl.value = this.font;
     this.quickHighlightColorEl.value = this.rgbToHex(this.highlightColor);
     this.quickTextColorEl.value = this.rgbToHex(this.fg);
     this.quickTextAlignEl.value = this.textAlign;
@@ -1072,10 +1154,14 @@ class Teleprompter {
         wordElem.style.color = arrToColor(...this.fg);
       }
     }
-    document.getElementById('play_div').style.paddingLeft = `${this.margin}px`;
-    document.getElementById('play_div').style.paddingRight = `${this.margin}px`;
-    document.getElementById('edit_text_div').style.paddingLeft = `${this.margin}px`;
-    document.getElementById('edit_text_div').style.paddingRight = `${this.margin}px`;
+    document.getElementById('play_div').style.paddingTop = `${this.paddingTop}px`;
+    document.getElementById('play_div').style.paddingRight = `${this.paddingRight}px`;
+    document.getElementById('play_div').style.paddingBottom = `${this.paddingBottom}px`;
+    document.getElementById('play_div').style.paddingLeft = `${this.paddingLeft}px`;
+    document.getElementById('edit_text_div').style.paddingTop = `${this.paddingTop}px`;
+    document.getElementById('edit_text_div').style.paddingRight = `${this.paddingRight}px`;
+    document.getElementById('edit_text_div').style.paddingBottom = `${this.paddingBottom}px`;
+    document.getElementById('edit_text_div').style.paddingLeft = `${this.paddingLeft}px`;
     if (this.showrec) {
       document.getElementById('rec_text').style.display = 'flex';
       let upperText = [];
@@ -1249,7 +1335,7 @@ class Teleprompter {
       evt.preventDefault();
       if (this.quickSettingsPanelEl && this.quickSettingsPanelEl.classList.contains('is-open'))
         this.closeQuickSettings();
-      else if (document.fullscreenElement || this.shortcuts.fullscreen !== 'Escape')
+      else if (document.fullscreenEnabled)
         this.toggleFullscreenMode();
       else
         this.toggleCleanMode();
@@ -1279,7 +1365,7 @@ class Teleprompter {
     return {
       playPause: 'Space',
       restart: 'KeyR',
-      fullscreen: 'Escape',
+      fullscreen: 'KeyF',
       edit: 'KeyE',
     };
   }
@@ -1289,13 +1375,18 @@ class Teleprompter {
     return {
       playPause: this.normalizeShortcutValue(shortcuts && shortcuts.playPause, defaults.playPause),
       restart: this.normalizeShortcutValue(shortcuts && shortcuts.restart, defaults.restart),
-      fullscreen: this.normalizeShortcutValue(shortcuts && shortcuts.fullscreen, defaults.fullscreen),
+      fullscreen: this.normalizeFullscreenShortcut(shortcuts && shortcuts.fullscreen, defaults.fullscreen),
       edit: this.normalizeShortcutValue(shortcuts && shortcuts.edit, defaults.edit),
     };
   }
 
   normalizeShortcutValue(value, fallback) {
     return typeof value === 'string' && value.trim() !== '' ? value.trim() : fallback;
+  }
+
+  normalizeFullscreenShortcut(value, fallback) {
+    const shortcut = this.normalizeShortcutValue(value, fallback);
+    return shortcut === 'Escape' ? fallback : shortcut;
   }
 
   matchesShortcut(evt, shortcutCode) {
@@ -1329,6 +1420,11 @@ class Teleprompter {
     const shortcutName = evt.currentTarget.dataset.shortcutName;
     if (!shortcutName)
       return;
+    if (shortcutName === 'fullscreen' && (evt.code === 'Escape' || evt.key === 'Escape')) {
+      this.addMessage('warning', 'Esc queda reservado para salir de pantalla completa. Usá otra tecla para entrar.');
+      this.syncShortcutInputs();
+      return;
+    }
     this.shortcuts = this.normalizeShortcuts({
       ...this.shortcuts,
       [shortcutName]: evt.code || evt.key,
