@@ -797,11 +797,19 @@ input[type="color"]::-webkit-color-swatch { border: 1px solid var(--border-color
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.script-list-container { flex-grow: 1; overflow-y: auto; padding: 0.8rem; }
+.script-list-container {
+  flex-grow: 1;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0.8rem;
+}
 
 /* Script Cards replacing script-list from original */
 .script-card {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   padding: 1rem;
   border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.04);
@@ -823,6 +831,10 @@ input[type="color"]::-webkit-color-swatch { border: 1px solid var(--border-color
 }
 .script-card-title {
   display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 700;
   color: var(--text-heading);
 }
@@ -836,6 +848,10 @@ input[type="color"]::-webkit-color-swatch { border: 1px solid var(--border-color
 }
 .script-card-preview {
   display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   margin-top: 0.65rem;
   color: var(--text-secondary);
   line-height: 1.45;

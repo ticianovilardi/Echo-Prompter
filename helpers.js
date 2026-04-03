@@ -47,6 +47,11 @@ function escapeHtml(word) {
     .replace(/\r?\n/g, '&#8203;<br />&#8203;');
 }
 
+function escapePlainHtml(word) {
+  return `${word || ''}`.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+
 function lcs(stra, strb) {
   const l = [];
   for (let i = 0; i <= stra.length; i++) {

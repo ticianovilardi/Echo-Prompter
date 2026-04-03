@@ -547,11 +547,14 @@ class Teleprompter {
     } else if (setting == 'edit') {
       this.stop();
       if (this.edit) {
-        this.text = document.getElementById('text_editor').value;
+        this.text = this.readingEditorEl ? this.readingEditorEl.value : this.text;
+        this.updateActiveScriptText(this.text);
         this.adaptText();
         this.edit = false;
-      } else
-        this.edit = true;
+      } else {
+        this.edit = false;
+        this.openScriptLibrary();
+      }
       this.applySettings();
     } else if (setting == 'clear') {
       this.stop();
@@ -1781,6 +1784,26 @@ class Teleprompter {
   }
 
   openScriptLibrary() {
+    const modal = document.getElementById('prompts-modal');
+    if (modal) {
+      if (this.scriptSearchEl) {
+        this.scriptSearchEl.value = '';
+        this.filteredQuery = '';
+      }
+      this.renderTextLibrary();
+      if (this.scriptTitleEl)
+        this.scriptTitleEl.value = this.getActiveTextTitle();
+      if (this.editorEl)
+        this.editorEl.value = this.text;
+      this.clearPromptDirtyState();
+      if (!modal.open)
+        modal.showModal();
+      window.setTimeout(() => {
+        if (this.editorEl)
+          this.editorEl.focus();
+      }, 0);
+      return;
+    }
     this.setView('prompts');
   }
 
@@ -1890,7 +1913,7 @@ class Teleprompter {
           <span>${item.id === this.activeTextId ? 'Activo' : 'Disponible'}</span>
           <span>${item.text.trim().split(/\s+/).filter(Boolean).length} palabras</span>
         </span>
-        <span class="script-card-preview">${escapeHtml(this.getScriptPreview(item.text))}</span>
+        <span class="script-card-preview">${escapePlainHtml(this.getScriptPreview(item.text))}</span>
       </button>
     `).join('');
     if (cards === '') {
