@@ -109,6 +109,8 @@ class Teleprompter {
     this.shortcuts = this.getDefaultShortcuts();
     this.dirtyPrompt = false;
     this.pendingPromptDraft = '';
+    this.inlineEditSaveDelayMs = 3000;
+    this.inlineEditSaveTimer = null;
     this.quickSettingsPreviouslyFocused = null;
     this.toDefaultSettings();
     this.captureElements();
@@ -214,6 +216,7 @@ class Teleprompter {
     this.readerScriptOptionsEl = document.getElementById('reader-script-options');
     this.readerPrevScriptEl = document.getElementById('reader-prev-script');
     this.readerNextScriptEl = document.getElementById('reader-next-script');
+    this.readerEditQuickEl = document.getElementById('reader-edit-quick');
     this.editorDirtyStateEl = document.getElementById('editor-dirty-state');
     this.editorWordCountEl = document.getElementById('editor-word-count');
     this.languageGroupEl = document.getElementById('language-group');
@@ -295,6 +298,8 @@ class Teleprompter {
       nextEl.addEventListener('click', () => this.showNext());
     if (lastEl)
       lastEl.addEventListener('click', () => this.showLast());
+    if (this.readingEditorEl)
+      this.readingEditorEl.addEventListener('input', () => this.handleInlineReaderEditInput());
     if (this.readerPrevScriptEl)
       this.readerPrevScriptEl.addEventListener('click', () => this.switchReaderScriptByOffset(-1));
     if (this.readerNextScriptEl)
@@ -757,15 +762,32 @@ class Teleprompter {
       this.resetStopwatchSafely();
       this.applySettings();
     } else if (setting == 'edit') {
-      this.stop();
+      this.pause();
       if (this.edit) {
-        this.text = this.readingEditorEl ? this.readingEditorEl.value : this.text;
-        this.updateActiveScriptText(this.text);
-        this.adaptText();
+        const editDiv = document.getElementById('edit_text_div');
+        const readingScrollTop = editDiv ? editDiv.scrollTop : 0;
+        this.flushInlineReaderEdit();
         this.edit = false;
+        const playDiv = document.getElementById('play_div');
+        if (playDiv)
+          playDiv.scrollTop = readingScrollTop;
       } else {
-        this.edit = false;
-        this.openScriptLibrary();
+        const playDiv = document.getElementById('play_div');
+        const editDiv = document.getElementById('edit_text_div');
+        this.edit = true;
+        if (this.readingEditorEl) {
+          this.readingEditorEl.value = this.text;
+          this.resizeInlineReaderEditor();
+        }
+        if (editDiv)
+          editDiv.scrollTop = playDiv ? playDiv.scrollTop : 0;
+        window.setTimeout(() => {
+          if (this.readingEditorEl) {
+            this.readingEditorEl.focus();
+            if (playDiv)
+              document.getElementById('edit_text_div').scrollTop = playDiv.scrollTop;
+          }
+        }, 0);
       }
       this.applySettings();
     } else if (setting == 'clear') {
@@ -1235,6 +1257,13 @@ class Teleprompter {
     this.cleanToggleEl.innerHTML = this.cleanMode
       ? '<i class="fa-solid fa-compress" aria-hidden="true"></i>'
       : '<i class="fa-solid fa-expand" aria-hidden="true"></i>';
+    if (this.readerEditQuickEl) {
+      this.readerEditQuickEl.classList.toggle('active', this.edit);
+      this.readerEditQuickEl.title = this.edit ? 'Terminar edición y guardar' : 'Editar en pantalla';
+      this.readerEditQuickEl.innerHTML = this.edit
+        ? '<i class="fa-solid fa-check" aria-hidden="true"></i>'
+        : '<i class="fa-solid fa-pen" aria-hidden="true"></i>';
+    }
     this.quickTextSizeEl.value = `${this.size}`;
     if (this.quickTextSizeValueEl)
       this.quickTextSizeValueEl.textContent = `${this.size} px`;
@@ -1274,7 +1303,7 @@ class Teleprompter {
     this.quickTextColorEl.value = this.rgbToHex(this.fg);
     this.quickTextAlignEl.value = this.textAlign;
     if (this.editorDirtyStateEl) {
-      this.editorDirtyStateEl.textContent = this.dirtyPrompt ? 'Sin guardar' : 'Guardado';
+      this.editorDirtyStateEl.textContent = this.dirtyPrompt ? (this.edit ? 'Guardando...' : 'Sin guardar') : 'Guardado';
       this.editorDirtyStateEl.classList.toggle('dirty', this.dirtyPrompt);
       this.editorDirtyStateEl.classList.toggle('saved', !this.dirtyPrompt);
     }
@@ -1340,6 +1369,7 @@ class Teleprompter {
     document.getElementById('play_text').style.fontWeight = `${this.fontWeight}`;
     document.getElementById('play_text').style.textAlign = this.textAlign;
     this.readingEditorEl.style.fontFamily = this.font;
+    this.readingEditorEl.style.fontSize = `${this.size}px`;
     this.readingEditorEl.style.lineHeight = `${this.textLineHeight}`;
     this.readingEditorEl.style.fontWeight = `${this.fontWeight}`;
     this.readingEditorEl.style.textAlign = this.textAlign;
@@ -1415,6 +1445,7 @@ class Teleprompter {
       document.getElementById('play_div').style.display = 'none';
       document.getElementById('edit_text_div').style.display = 'block';
       this.stopSmoothScroll();
+      this.refreshInlineReaderEditorLayout();
     } else {
       document.getElementById('play_div').style.display = 'block';
       document.getElementById('edit_text_div').style.display = 'none';
@@ -1440,6 +1471,8 @@ class Teleprompter {
   }
 
   getSessionStatusLabel() {
+    if (this.edit)
+      return this.dirtyPrompt ? 'Editando...' : 'Editando';
     if (this.play)
       return 'Escuchando';
     if (this.sessionCompleted)
@@ -1449,9 +1482,16 @@ class Teleprompter {
     return 'Listo';
   }
 
-  markPromptDirty() {
+  markPromptDirty(draftText = null) {
     this.dirtyPrompt = true;
-    this.pendingPromptDraft = this.editorEl ? this.editorEl.value : this.text;
+    if (typeof draftText === 'string')
+      this.pendingPromptDraft = draftText;
+    else if (this.editorEl)
+      this.pendingPromptDraft = this.editorEl.value;
+    else if (this.readingEditorEl)
+      this.pendingPromptDraft = this.readingEditorEl.value;
+    else
+      this.pendingPromptDraft = this.text;
     this.persistDraftState();
     this.applySettings();
   }
@@ -1470,6 +1510,8 @@ class Teleprompter {
   }
 
   handleBeforeUnload(evt) {
+    if (this.inlineEditSaveTimer !== null)
+      this.flushInlineReaderEdit();
     this.persistDraftState();
     if (!this.dirtyPrompt)
       return;
@@ -1484,6 +1526,91 @@ class Teleprompter {
     this.adaptText();
     this.markPromptDirty();
     this.applySettings();
+  }
+
+  handleInlineReaderEditInput() {
+    if (!this.edit || !this.readingEditorEl)
+      return;
+    const draftText = this.readingEditorEl.value;
+    this.text = draftText;
+    this.pendingPromptDraft = draftText;
+    this.dirtyPrompt = true;
+    this.persistDraftState();
+    this.updateActiveScriptText(draftText);
+    this.resizeInlineReaderEditor();
+    if (this.editorEl && document.activeElement !== this.editorEl)
+      this.editorEl.value = draftText;
+    if (this.readerSessionStatusChipEl)
+      this.readerSessionStatusChipEl.textContent = 'Editando...';
+    if (this.editorDirtyStateEl) {
+      this.editorDirtyStateEl.textContent = 'Guardando...';
+      this.editorDirtyStateEl.classList.add('dirty');
+      this.editorDirtyStateEl.classList.remove('saved');
+    }
+    if (this.sidebarPreviewEl)
+      this.sidebarPreviewEl.textContent = this.getScriptPreview(draftText);
+    if (this.inlineEditSaveTimer !== null)
+      window.clearTimeout(this.inlineEditSaveTimer);
+    this.inlineEditSaveTimer = window.setTimeout(() => this.flushInlineReaderEdit(), this.inlineEditSaveDelayMs);
+  }
+
+  flushInlineReaderEdit() {
+    if (this.inlineEditSaveTimer !== null) {
+      window.clearTimeout(this.inlineEditSaveTimer);
+      this.inlineEditSaveTimer = null;
+    }
+    if (!this.readingEditorEl)
+      return;
+    const editDiv = document.getElementById('edit_text_div');
+    const preservedScrollTop = editDiv ? editDiv.scrollTop : 0;
+    const preservedPosition = min(max(this.currentPosition, 0), this.recText.length);
+    const preservedPreviewPosition = min(max(this.previewPosition, 0), this.recText.length);
+    const preservedRenderedPosition = min(max(this.lastRenderedPosition, 0), this.recText.length);
+    this.text = this.readingEditorEl.value;
+    this.updateActiveScriptText(this.text);
+    if (this.editorEl && document.activeElement !== this.editorEl)
+      this.editorEl.value = this.text;
+    this.adaptText();
+    this.currentPosition = min(preservedPosition, this.recText.length);
+    this.previewPosition = min(max(preservedPreviewPosition, this.currentPosition), this.recText.length);
+    this.lastRenderedPosition = min(max(preservedRenderedPosition, this.currentPosition), this.recText.length);
+    this.clearPromptDirtyState();
+    this.applySettings();
+    if (editDiv)
+      editDiv.scrollTop = preservedScrollTop;
+    window.requestAnimationFrame(() => {
+      const nextEditDiv = document.getElementById('edit_text_div');
+      if (nextEditDiv)
+        nextEditDiv.scrollTop = preservedScrollTop;
+    });
+  }
+
+  resizeInlineReaderEditor() {
+    if (!this.readingEditorEl)
+      return;
+    const editDiv = document.getElementById('edit_text_div');
+    const preservedScrollTop = editDiv ? editDiv.scrollTop : 0;
+    this.readingEditorEl.style.height = 'auto';
+    this.readingEditorEl.style.height = `${this.readingEditorEl.scrollHeight}px`;
+    if (editDiv)
+      editDiv.scrollTop = preservedScrollTop;
+  }
+
+  refreshInlineReaderEditorLayout() {
+    if (!this.readingEditorEl)
+      return;
+    const editDiv = document.getElementById('edit_text_div');
+    const preservedScrollTop = editDiv ? editDiv.scrollTop : 0;
+    void this.readingEditorEl.offsetHeight;
+    this.resizeInlineReaderEditor();
+    if (editDiv)
+      editDiv.scrollTop = preservedScrollTop;
+    window.requestAnimationFrame(() => {
+      this.resizeInlineReaderEditor();
+      const nextEditDiv = document.getElementById('edit_text_div');
+      if (nextEditDiv)
+        nextEditDiv.scrollTop = preservedScrollTop;
+    });
   }
 
   togglePlayback() {

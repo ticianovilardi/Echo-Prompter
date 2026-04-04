@@ -8,6 +8,8 @@
 
 #play_div,
 #edit_text_div {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   min-height: 0;
@@ -22,6 +24,9 @@
 }
 
 #edit_text_div {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
   padding-block: clamp(1rem, 3dvh, 2rem) clamp(8rem, 14dvh, 10rem);
   padding-inline: clamp(1rem, 4vw, 3.5rem);
 }
@@ -44,8 +49,15 @@
 }
 
 #text_editor {
-  background: rgba(10, 16, 22, 0.92);
-  font-size: clamp(1rem, 5vw, 1.4rem);
+  height: auto;
+  min-height: 100%;
+  box-sizing: border-box;
+  background: transparent;
+  border: 0;
+  outline: none;
+  box-shadow: none;
+  overflow: hidden;
+  resize: none;
 }
 
 .word_match {

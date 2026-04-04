@@ -621,6 +621,12 @@ body[data-entry-view="reader"] .app-shell {
   border-color: rgba(255, 255, 255, 0.18);
 }
 
+.btn-glass.active {
+  background: var(--accent-transparent);
+  border-color: rgba(83, 211, 193, 0.35);
+  color: var(--accent);
+}
+
 .btn-primary.btn-large {
   width: 56px; height: 56px;
   font-size: 1.5rem;
