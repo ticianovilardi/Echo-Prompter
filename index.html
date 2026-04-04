@@ -61,6 +61,22 @@
                 <span class="pulse-indicator" id="reader-mic-status-overlay">Mic: Listo</span>
                 <span class="pill-dark" id="reader-language-status-overlay">es-AR</span>
               </div>
+              <div class="reader-script-nav" id="reader-script-nav">
+                <button id="reader-prev-script" type="button" class="script-nav-arrow" title="Capítulo anterior" aria-label="Capítulo anterior">
+                  <i class="fa-solid fa-chevron-left"></i>
+                </button>
+                <details id="reader-script-switcher" class="reader-script-switcher">
+                  <summary class="reader-script-trigger" aria-label="Elegir capítulo">
+                    <i class="fa-solid fa-layer-group"></i>
+                    <span id="reader-script-switcher-label">Capítulos</span>
+                    <i class="fa-solid fa-chevron-down script-switcher-caret"></i>
+                  </summary>
+                  <div id="reader-script-options" class="reader-script-options"></div>
+                </details>
+                <button id="reader-next-script" type="button" class="script-nav-arrow" title="Capítulo siguiente" aria-label="Capítulo siguiente">
+                  <i class="fa-solid fa-chevron-right"></i>
+                </button>
+              </div>
             </div>
 
             <div class="reader-stage">
@@ -172,28 +188,40 @@
                 <span>Padding top</span>
                 <output id="quick-padding-top-value" class="quick-field-value" for="quick-padding-top">96 px</output>
               </span>
-              <input id="quick-padding-top" type="range" min="0" max="320" step="4" value="96">
+              <div class="quick-padding-control">
+                <input id="quick-padding-top" type="range" min="0" max="1200" step="4" value="96">
+                <input id="quick-padding-top-manual" type="number" min="0" step="1" value="96" class="modern-input quick-padding-manual" aria-label="Padding top manual en píxeles">
+              </div>
             </label>
             <label class="field-group">
               <span class="quick-field-label">
                 <span>Padding right</span>
                 <output id="quick-padding-right-value" class="quick-field-value" for="quick-padding-right">56 px</output>
               </span>
-              <input id="quick-padding-right" type="range" min="0" max="240" step="4" value="56">
+              <div class="quick-padding-control">
+                <input id="quick-padding-right" type="range" min="0" max="1200" step="4" value="56">
+                <input id="quick-padding-right-manual" type="number" min="0" step="1" value="56" class="modern-input quick-padding-manual" aria-label="Padding right manual en píxeles">
+              </div>
             </label>
             <label class="field-group">
               <span class="quick-field-label">
                 <span>Padding bottom</span>
                 <output id="quick-padding-bottom-value" class="quick-field-value" for="quick-padding-bottom">160 px</output>
               </span>
-              <input id="quick-padding-bottom" type="range" min="0" max="420" step="4" value="160">
+              <div class="quick-padding-control">
+                <input id="quick-padding-bottom" type="range" min="0" max="1200" step="4" value="160">
+                <input id="quick-padding-bottom-manual" type="number" min="0" step="1" value="160" class="modern-input quick-padding-manual" aria-label="Padding bottom manual en píxeles">
+              </div>
             </label>
             <label class="field-group">
               <span class="quick-field-label">
                 <span>Padding left</span>
                 <output id="quick-padding-left-value" class="quick-field-value" for="quick-padding-left">56 px</output>
               </span>
-              <input id="quick-padding-left" type="range" min="0" max="240" step="4" value="56">
+              <div class="quick-padding-control">
+                <input id="quick-padding-left" type="range" min="0" max="1200" step="4" value="56">
+                <input id="quick-padding-left-manual" type="number" min="0" step="1" value="56" class="modern-input quick-padding-manual" aria-label="Padding left manual en píxeles">
+              </div>
             </label>
           </div>
           <label class="field-group">
@@ -258,19 +286,14 @@
               <input id="script-title" type="text" class="title-input transparent-input" placeholder="Título del guion...">
               <div class="editor-actions">
                 <span id="editor-word-count" class="word-count-badge">0 pal.</span>
-                <button id="duplicate-script" class="btn-glass-secondary" title="Duplicar"><i class="fa-regular fa-copy"></i></button>
-                <button id="delete-script" class="btn-danger-outline" title="Eliminar"><i class="fa-regular fa-trash-can"></i></button>
+                <span id="editor-dirty-state" class="state-pill dirty">Sin guardar</span>
+                <button id="save-script" class="editor-tool-button" title="Guardar" aria-label="Guardar"><i class="fa-regular fa-floppy-disk"></i></button>
+                <button id="duplicate-script" class="editor-tool-button" title="Duplicar" aria-label="Duplicar"><i class="fa-regular fa-copy"></i></button>
+                <button id="delete-script" class="editor-tool-button danger" title="Eliminar" aria-label="Eliminar"><i class="fa-regular fa-trash-can"></i></button>
               </div>
             </div>
             <div class="editor-main">
               <textarea id="prompt-editor" class="modern-textarea custom-scrollbar" placeholder="Escribí tu guion acá..."></textarea>
-            </div>
-            <div class="editor-bottombar">
-              <span id="editor-dirty-state" class="state-pill dirty">Sin guardar</span>
-              <div class="action-group">
-                <button id="save-script" class="btn-glass-secondary"><i class="fa-regular fa-floppy-disk"></i> Guardar</button>
-                <button id="use-script-in-reader" class="btn-primary"><i class="fa-solid fa-wave-square"></i> Usar en Lector</button>
-              </div>
             </div>
           </div>
         </div>

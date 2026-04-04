@@ -107,20 +107,18 @@
               <h3>Contenido del prompt</h3>
             </div>
             <div class="editor-actions">
-              <button id="duplicate-script" type="button" class="secondary-button">
-                <i class="fa-regular fa-copy" aria-hidden="true"></i>
-                <span>Duplicar</span>
+              <span id="editor-word-count" class="word-count-badge">0 pal.</span>
+              <span id="editor-dirty-state" class="state-pill dirty">Sin guardar</span>
+              <button id="save-script" type="button" class="editor-tool-button" title="Guardar" aria-label="Guardar">
+                <i class="fa-regular fa-floppy-disk" aria-hidden="true"></i>
               </button>
-              <button id="delete-script" type="button" class="secondary-button secondary-button-danger">
+              <button id="duplicate-script" type="button" class="editor-tool-button" title="Duplicar" aria-label="Duplicar">
+                <i class="fa-regular fa-copy" aria-hidden="true"></i>
+              </button>
+              <button id="delete-script" type="button" class="editor-tool-button danger" title="Eliminar" aria-label="Eliminar">
                 <i class="fa-regular fa-trash-can" aria-hidden="true"></i>
-                <span>Eliminar</span>
               </button>
             </div>
-          </div>
-
-          <div class="editor-status-bar">
-            <span id="editor-dirty-state" class="editor-state-pill">Todo guardado</span>
-            <span id="editor-word-count" class="editor-meta">0 palabras</span>
           </div>
 
           <label class="field-group" for="script-title">
@@ -135,16 +133,6 @@
             <textarea id="prompt-editor" class="prompt-textarea" placeholder="Escribí aquí el contenido del prompt..."></textarea>
           </div>
 
-          <div class="editor-footer">
-            <button id="save-script" type="button" class="primary-button">
-              <i class="fa-regular fa-floppy-disk" aria-hidden="true"></i>
-              <span>Guardar cambios</span>
-            </button>
-            <button id="use-script-in-reader" type="button" class="secondary-button">
-              <i class="fa-solid fa-play" aria-hidden="true"></i>
-              <span>Usar en el lector</span>
-            </button>
-          </div>
         </section>
       </section>
 

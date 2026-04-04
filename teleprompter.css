@@ -17,17 +17,20 @@
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
-  padding-block: clamp(5rem, 12vh, 8rem) clamp(12rem, 18vh, 16rem);
+  padding-block: clamp(4rem, 12dvh, 8rem) clamp(10rem, 18dvh, 16rem);
+  padding-inline: clamp(1rem, 4vw, 3.5rem);
 }
 
 #edit_text_div {
-  padding-block: 2rem 10rem;
+  padding-block: clamp(1rem, 3dvh, 2rem) clamp(8rem, 14dvh, 10rem);
+  padding-inline: clamp(1rem, 4vw, 3.5rem);
 }
 
 #play_text,
 #text_editor {
   display: block;
-  max-width: 84%;
+  width: min(100%, 84%);
+  max-width: min(100%, 84%);
   margin-inline: auto;
 }
 
@@ -42,6 +45,7 @@
 
 #text_editor {
   background: rgba(10, 16, 22, 0.92);
+  font-size: clamp(1rem, 5vw, 1.4rem);
 }
 
 .word_match {
@@ -59,6 +63,23 @@
 
   #play_text,
   #text_editor {
+    width: 100% !important;
     max-width: 100%;
+  }
+
+  #play_div {
+    padding-block: clamp(5rem, 14dvh, 7rem) clamp(12rem, 24dvh, 15rem);
+    padding-inline: clamp(0.75rem, 3vw, 1.25rem);
+  }
+
+  #edit_text_div {
+    padding-block: 1rem clamp(8rem, 20dvh, 12rem);
+    padding-inline: clamp(0.75rem, 3vw, 1.25rem);
+  }
+}
+
+@media (max-width: 480px) {
+  .word_match {
+    margin-right: 0.2em;
   }
 }

@@ -12,11 +12,66 @@ class Teleprompter {
       settings: 'promptySettings',
       dirtyDraft: 'promptyDirtyDraft',
     };
+    this.visualProfiles = {
+      mobile: {
+        size: 28,
+        font: "'Instrument Sans', sans-serif",
+        fg: [242, 242, 242],
+        highlightColor: [126, 231, 135],
+        textBoxWidth: 100,
+        textLineHeight: 1.15,
+        fontWeight: 400,
+        textAlign: 'center',
+        paddingTop: 56,
+        paddingRight: 16,
+        paddingBottom: 180,
+        paddingLeft: 16,
+        readingPosition: 'top',
+        readingTopMargin: 96,
+        readingTopLines: 2,
+      },
+      tablet: {
+        size: 56,
+        font: "'Instrument Sans', sans-serif",
+        fg: [242, 242, 242],
+        highlightColor: [126, 231, 135],
+        textBoxWidth: 92,
+        textLineHeight: 1.2,
+        fontWeight: 400,
+        textAlign: 'center',
+        paddingTop: 72,
+        paddingRight: 32,
+        paddingBottom: 180,
+        paddingLeft: 32,
+        readingPosition: 'top',
+        readingTopMargin: 110,
+        readingTopLines: 2,
+      },
+      desktop: {
+        size: 120,
+        font: "'Instrument Sans', sans-serif",
+        fg: [242, 242, 242],
+        highlightColor: [126, 231, 135],
+        textBoxWidth: 84,
+        textLineHeight: 1.25,
+        fontWeight: 400,
+        textAlign: 'center',
+        paddingTop: 96,
+        paddingRight: 56,
+        paddingBottom: 160,
+        paddingLeft: 56,
+        readingPosition: 'top',
+        readingTopMargin: 140,
+        readingTopLines: 2,
+      },
+    };
+    this.activeVisualProfile = this.getViewportVisualProfile();
     this.text = DEFAULT_TEXT_EN;
     this.textLibrary = [];
     this.activeTextId = null;
     this.appView = document.body.dataset.entryView || 'reader';
     this.filteredQuery = '';
+    this.draggedScriptId = null;
     this.cleanMode = false;
     this.sessionCompleted = false;
     this.msgCounter = 0;
@@ -112,7 +167,7 @@ class Teleprompter {
       const eventName = field.type === 'checkbox' ? 'change' : 'input';
       field.addEventListener(eventName, () => this.updateMatchTuningFromInputs());
     }
-    window.addEventListener('resize', () => this.applySettings());
+    window.addEventListener('resize', () => this.handleViewportResize());
     document.addEventListener('visibilitychange', () => this.handleVisibilityChange());
     document.addEventListener('fullscreenchange', () => {
       this.cleanMode = !!document.fullscreenElement;
@@ -153,6 +208,12 @@ class Teleprompter {
     this.scriptSearchEl = document.getElementById('script-search');
     this.scriptListEl = document.getElementById('script-list');
     this.scriptLibraryStatusEl = document.getElementById('script-library-status');
+    this.readerScriptNavEl = document.getElementById('reader-script-nav');
+    this.readerScriptSwitcherEl = document.getElementById('reader-script-switcher');
+    this.readerScriptSwitcherLabelEl = document.getElementById('reader-script-switcher-label');
+    this.readerScriptOptionsEl = document.getElementById('reader-script-options');
+    this.readerPrevScriptEl = document.getElementById('reader-prev-script');
+    this.readerNextScriptEl = document.getElementById('reader-next-script');
     this.editorDirtyStateEl = document.getElementById('editor-dirty-state');
     this.editorWordCountEl = document.getElementById('editor-word-count');
     this.languageGroupEl = document.getElementById('language-group');
@@ -170,12 +231,16 @@ class Teleprompter {
     this.quickLineHeightValueEl = document.getElementById('quick-line-height-value');
     this.quickPaddingTopEl = document.getElementById('quick-padding-top');
     this.quickPaddingTopValueEl = document.getElementById('quick-padding-top-value');
+    this.quickPaddingTopManualEl = document.getElementById('quick-padding-top-manual');
     this.quickPaddingRightEl = document.getElementById('quick-padding-right');
     this.quickPaddingRightValueEl = document.getElementById('quick-padding-right-value');
+    this.quickPaddingRightManualEl = document.getElementById('quick-padding-right-manual');
     this.quickPaddingBottomEl = document.getElementById('quick-padding-bottom');
     this.quickPaddingBottomValueEl = document.getElementById('quick-padding-bottom-value');
+    this.quickPaddingBottomManualEl = document.getElementById('quick-padding-bottom-manual');
     this.quickPaddingLeftEl = document.getElementById('quick-padding-left');
     this.quickPaddingLeftValueEl = document.getElementById('quick-padding-left-value');
+    this.quickPaddingLeftManualEl = document.getElementById('quick-padding-left-manual');
     this.quickFontFamilyEl = document.getElementById('quick-font-family');
     this.quickHighlightColorEl = document.getElementById('quick-highlight-color');
     this.quickTextColorEl = document.getElementById('quick-text-color');
@@ -194,13 +259,10 @@ class Teleprompter {
     const openQuickPanelBottomEl = document.getElementById('reader-open-quick-panel-bottom');
     const openSettingsModalEl = document.getElementById('reader-open-settings-modal');
     const quickSettingsCloseEl = document.getElementById('quick-settings-close');
-    const useInReaderEl = document.getElementById('use-script-in-reader');
     const prevEl = document.getElementById('prev');
     const nextEl = document.getElementById('next');
     const lastEl = document.getElementById('last');
 
-    if (useInReaderEl)
-      useInReaderEl.addEventListener('click', () => this.openReaderWithCurrentScript());
     if (readerRestartEl)
       readerRestartEl.addEventListener('click', () => this.restartReading());
     if (this.playToggleEl)
@@ -233,6 +295,27 @@ class Teleprompter {
       nextEl.addEventListener('click', () => this.showNext());
     if (lastEl)
       lastEl.addEventListener('click', () => this.showLast());
+    if (this.readerPrevScriptEl)
+      this.readerPrevScriptEl.addEventListener('click', () => this.switchReaderScriptByOffset(-1));
+    if (this.readerNextScriptEl)
+      this.readerNextScriptEl.addEventListener('click', () => this.switchReaderScriptByOffset(1));
+    if (this.readerScriptOptionsEl) {
+      this.readerScriptOptionsEl.addEventListener('click', evt => {
+        const optionButton = evt.target.closest('[data-reader-script-id]');
+        if (!optionButton)
+          return;
+        this.selectScript(optionButton.dataset.readerScriptId);
+        if (this.readerScriptSwitcherEl)
+          this.readerScriptSwitcherEl.removeAttribute('open');
+      });
+    }
+    document.addEventListener('click', evt => {
+      if (!this.readerScriptSwitcherEl || !this.readerScriptSwitcherEl.open)
+        return;
+      if (this.readerScriptSwitcherEl.contains(evt.target))
+        return;
+      this.readerScriptSwitcherEl.removeAttribute('open');
+    });
   }
 
   bindLibraryEvents() {
@@ -365,25 +448,57 @@ class Teleprompter {
     }
     if (this.quickPaddingTopEl) {
       this.quickPaddingTopEl.addEventListener('input', evt => {
-        this.paddingTop = parseInt(evt.target.value);
+        this.paddingTop = this.normalizePaddingValue(evt.target.value);
+        if (this.quickPaddingTopManualEl)
+          this.quickPaddingTopManualEl.value = `${this.paddingTop}`;
+        this.applySettings();
+      });
+    }
+    if (this.quickPaddingTopManualEl) {
+      this.quickPaddingTopManualEl.addEventListener('input', evt => {
+        this.paddingTop = this.normalizePaddingValue(evt.target.value);
         this.applySettings();
       });
     }
     if (this.quickPaddingRightEl) {
       this.quickPaddingRightEl.addEventListener('input', evt => {
-        this.paddingRight = parseInt(evt.target.value);
+        this.paddingRight = this.normalizePaddingValue(evt.target.value);
+        if (this.quickPaddingRightManualEl)
+          this.quickPaddingRightManualEl.value = `${this.paddingRight}`;
+        this.applySettings();
+      });
+    }
+    if (this.quickPaddingRightManualEl) {
+      this.quickPaddingRightManualEl.addEventListener('input', evt => {
+        this.paddingRight = this.normalizePaddingValue(evt.target.value);
         this.applySettings();
       });
     }
     if (this.quickPaddingBottomEl) {
       this.quickPaddingBottomEl.addEventListener('input', evt => {
-        this.paddingBottom = parseInt(evt.target.value);
+        this.paddingBottom = this.normalizePaddingValue(evt.target.value);
+        if (this.quickPaddingBottomManualEl)
+          this.quickPaddingBottomManualEl.value = `${this.paddingBottom}`;
+        this.applySettings();
+      });
+    }
+    if (this.quickPaddingBottomManualEl) {
+      this.quickPaddingBottomManualEl.addEventListener('input', evt => {
+        this.paddingBottom = this.normalizePaddingValue(evt.target.value);
         this.applySettings();
       });
     }
     if (this.quickPaddingLeftEl) {
       this.quickPaddingLeftEl.addEventListener('input', evt => {
-        this.paddingLeft = parseInt(evt.target.value);
+        this.paddingLeft = this.normalizePaddingValue(evt.target.value);
+        if (this.quickPaddingLeftManualEl)
+          this.quickPaddingLeftManualEl.value = `${this.paddingLeft}`;
+        this.applySettings();
+      });
+    }
+    if (this.quickPaddingLeftManualEl) {
+      this.quickPaddingLeftManualEl.addEventListener('input', evt => {
+        this.paddingLeft = this.normalizePaddingValue(evt.target.value);
         this.applySettings();
       });
     }
@@ -437,6 +552,103 @@ class Teleprompter {
     try {
       localStorage.setItem(key, JSON.stringify(value));
     } catch (error) {}
+  }
+
+  normalizePaddingValue(value) {
+    const parsedValue = parseInt(value);
+    if (isNaN(parsedValue))
+      return 0;
+    return min(max(parsedValue, 0), 10000);
+  }
+
+  getViewportVisualProfile() {
+    const width = window.innerWidth || document.documentElement.clientWidth || 1024;
+    if (width <= 640)
+      return 'mobile';
+    if (width <= 1024)
+      return 'tablet';
+    return 'desktop';
+  }
+
+  getVisualTextSizeMin() {
+    if (this.activeVisualProfile === 'mobile')
+      return 18;
+    if (this.activeVisualProfile === 'tablet')
+      return 24;
+    return 40;
+  }
+
+  getCurrentVisualSettings() {
+    return {
+      size: this.size,
+      font: this.font,
+      fg: this.fg,
+      highlightColor: this.highlightColor,
+      textBoxWidth: this.textBoxWidth,
+      textLineHeight: this.textLineHeight,
+      fontWeight: this.fontWeight,
+      textAlign: this.textAlign,
+      paddingTop: this.paddingTop,
+      paddingRight: this.paddingRight,
+      paddingBottom: this.paddingBottom,
+      paddingLeft: this.paddingLeft,
+      readingPosition: this.readingPosition,
+      readingTopMargin: this.readingTopMargin,
+      readingTopLines: this.readingTopLines,
+    };
+  }
+
+  applyVisualSettingsForProfile(profile, storedProfile = null) {
+    const visualSettings = {
+      ...(this.visualProfiles[profile] || this.visualProfiles.desktop),
+      ...(storedProfile && typeof storedProfile === 'object' ? storedProfile : {}),
+    };
+    this.size = visualSettings.size || this.size;
+    this.font = visualSettings.font || this.font;
+    this.fg = visualSettings.fg || this.fg;
+    this.highlightColor = visualSettings.highlightColor || this.highlightColor;
+    this.textBoxWidth = visualSettings.textBoxWidth || this.textBoxWidth;
+    this.textLineHeight = visualSettings.textLineHeight || this.textLineHeight;
+    this.fontWeight = visualSettings.fontWeight || this.fontWeight;
+    this.textAlign = visualSettings.textAlign || this.textAlign;
+    this.paddingTop = visualSettings.paddingTop ?? this.paddingTop;
+    this.paddingRight = visualSettings.paddingRight ?? this.paddingRight;
+    this.paddingBottom = visualSettings.paddingBottom ?? this.paddingBottom;
+    this.paddingLeft = visualSettings.paddingLeft ?? this.paddingLeft;
+    this.readingPosition = visualSettings.readingPosition || this.readingPosition;
+    this.readingTopMargin = visualSettings.readingTopMargin || this.readingTopMargin;
+    this.readingTopLines = visualSettings.readingTopLines || this.readingTopLines;
+  }
+
+  syncVisualControlRanges() {
+    const minSize = this.getVisualTextSizeMin();
+    if (this.quickTextSizeEl)
+      this.quickTextSizeEl.min = `${minSize}`;
+    const textSizeLiveEl = document.getElementById('text-size-live');
+    if (textSizeLiveEl)
+      textSizeLiveEl.min = `${minSize}`;
+    this.size = min(max(this.size, minSize), 220);
+  }
+
+  handleViewportResize() {
+    const nextProfile = this.getViewportVisualProfile();
+    if (nextProfile === this.activeVisualProfile) {
+      this.applySettings();
+      return;
+    }
+    const storedSettings = this.readStorage(this.storageKeys.settings) || {};
+    const storedProfiles = storedSettings.visualProfiles && typeof storedSettings.visualProfiles === 'object'
+      ? storedSettings.visualProfiles
+      : {};
+    storedProfiles[this.activeVisualProfile] = this.getCurrentVisualSettings();
+    this.writeStorage(this.storageKeys.settings, {
+      ...storedSettings,
+      visualProfiles: storedProfiles,
+    });
+    this.activeVisualProfile = nextProfile;
+    this.applyVisualSettingsForProfile(nextProfile, storedProfiles[nextProfile]);
+    this.syncVisualControlRanges();
+    this.applySettings();
   }
 
   startStopwatchSafely() {
@@ -868,6 +1080,8 @@ class Teleprompter {
     this.matchTuning = this.getDefaultMatchTuning();
     this.shortcuts = this.getDefaultShortcuts();
     this.speechBackendStatus = 'Web Speech API ready';
+    this.activeVisualProfile = this.getViewportVisualProfile();
+    this.applyVisualSettingsForProfile(this.activeVisualProfile);
   }
 
   toDefaultSettings() {
@@ -879,31 +1093,21 @@ class Teleprompter {
     if (!document.body.dataset.entryView && typeof storedView === 'string')
       this.appView = storedView;
     if (storedSettings && typeof storedSettings === 'object') {
+      const storedProfiles = storedSettings.visualProfiles && typeof storedSettings.visualProfiles === 'object'
+        ? storedSettings.visualProfiles
+        : {};
       this.lang = storedSettings.lang || this.lang;
       this.bg = storedSettings.bg || this.bg;
-      this.fg = storedSettings.fg || this.fg;
-      this.size = storedSettings.size || this.size;
-      this.font = storedSettings.font || this.font;
       this.margin = storedSettings.margin || this.margin;
-      this.paddingTop = storedSettings.paddingTop ?? this.paddingTop;
-      this.paddingRight = storedSettings.paddingRight ?? this.margin;
-      this.paddingBottom = storedSettings.paddingBottom ?? this.paddingBottom;
-      this.paddingLeft = storedSettings.paddingLeft ?? this.margin;
       this.mirrorv = typeof storedSettings.mirrorv === 'boolean' ? storedSettings.mirrorv : this.mirrorv;
       this.mirrorh = typeof storedSettings.mirrorh === 'boolean' ? storedSettings.mirrorh : this.mirrorh;
       this.showrec = typeof storedSettings.showrec === 'boolean' ? storedSettings.showrec : this.showrec;
-      this.readingPosition = storedSettings.readingPosition || this.readingPosition;
-      this.readingTopMargin = storedSettings.readingTopMargin || this.readingTopMargin;
-      this.readingTopLines = storedSettings.readingTopLines || this.readingTopLines;
-      this.highlightColor = storedSettings.highlightColor || this.highlightColor;
       this.followLag = storedSettings.followLag || this.followLag;
-      this.textBoxWidth = storedSettings.textBoxWidth || this.textBoxWidth;
-      this.textLineHeight = storedSettings.textLineHeight || this.textLineHeight;
-      this.fontWeight = storedSettings.fontWeight || this.fontWeight;
-      this.textAlign = storedSettings.textAlign || this.textAlign;
       this.matchTuning = this.normalizeMatchTuning(storedSettings.matchTuning);
       this.shortcuts = this.normalizeShortcuts(storedSettings.shortcuts);
+      this.applyVisualSettingsForProfile(this.activeVisualProfile, storedProfiles[this.activeVisualProfile] || storedSettings);
     }
+    this.syncVisualControlRanges();
     if (storedDraft && typeof storedDraft === 'object') {
       this.dirtyPrompt = !!storedDraft.isDirty;
       this.pendingPromptDraft = typeof storedDraft.text === 'string' ? storedDraft.text : '';
@@ -959,6 +1163,11 @@ class Teleprompter {
       textAlign: this.textAlign,
       matchTuning: this.matchTuning,
       shortcuts: this.shortcuts,
+      activeVisualProfile: this.activeVisualProfile,
+      visualProfiles: {
+        ...((this.readStorage(this.storageKeys.settings) || {}).visualProfiles || {}),
+        [this.activeVisualProfile]: this.getCurrentVisualSettings(),
+      },
     });
     window.prompterMatchTuning = this.matchTuning;
     if (this.scriptTitleEl && document.activeElement !== this.scriptTitleEl)
@@ -969,6 +1178,7 @@ class Teleprompter {
       this.readingEditorEl.value = this.text;
     document.getElementById('script-library-status').textContent = this.getLibraryStatus();
     this.renderTextLibrary();
+    this.renderReaderScriptNavigator();
     const micStatusEl = document.getElementById('mic_status');
     const readingPositionEl = document.getElementById('reading-position');
     const readingTopMarginEl = document.getElementById('reading-top-margin');
@@ -1035,19 +1245,27 @@ class Teleprompter {
     if (this.quickLineHeightValueEl)
       this.quickLineHeightValueEl.textContent = `${this.textLineHeight.toFixed(2)}x`;
     if (this.quickPaddingTopEl)
-      this.quickPaddingTopEl.value = `${this.paddingTop}`;
+      this.quickPaddingTopEl.value = `${min(this.paddingTop, parseInt(this.quickPaddingTopEl.max) || this.paddingTop)}`;
+    if (this.quickPaddingTopManualEl && document.activeElement !== this.quickPaddingTopManualEl)
+      this.quickPaddingTopManualEl.value = `${this.paddingTop}`;
     if (this.quickPaddingTopValueEl)
       this.quickPaddingTopValueEl.textContent = `${this.paddingTop} px`;
     if (this.quickPaddingRightEl)
-      this.quickPaddingRightEl.value = `${this.paddingRight}`;
+      this.quickPaddingRightEl.value = `${min(this.paddingRight, parseInt(this.quickPaddingRightEl.max) || this.paddingRight)}`;
+    if (this.quickPaddingRightManualEl && document.activeElement !== this.quickPaddingRightManualEl)
+      this.quickPaddingRightManualEl.value = `${this.paddingRight}`;
     if (this.quickPaddingRightValueEl)
       this.quickPaddingRightValueEl.textContent = `${this.paddingRight} px`;
     if (this.quickPaddingBottomEl)
-      this.quickPaddingBottomEl.value = `${this.paddingBottom}`;
+      this.quickPaddingBottomEl.value = `${min(this.paddingBottom, parseInt(this.quickPaddingBottomEl.max) || this.paddingBottom)}`;
+    if (this.quickPaddingBottomManualEl && document.activeElement !== this.quickPaddingBottomManualEl)
+      this.quickPaddingBottomManualEl.value = `${this.paddingBottom}`;
     if (this.quickPaddingBottomValueEl)
       this.quickPaddingBottomValueEl.textContent = `${this.paddingBottom} px`;
     if (this.quickPaddingLeftEl)
-      this.quickPaddingLeftEl.value = `${this.paddingLeft}`;
+      this.quickPaddingLeftEl.value = `${min(this.paddingLeft, parseInt(this.quickPaddingLeftEl.max) || this.paddingLeft)}`;
+    if (this.quickPaddingLeftManualEl && document.activeElement !== this.quickPaddingLeftManualEl)
+      this.quickPaddingLeftManualEl.value = `${this.paddingLeft}`;
     if (this.quickPaddingLeftValueEl)
       this.quickPaddingLeftValueEl.textContent = `${this.paddingLeft} px`;
     if (this.quickFontFamilyEl)
@@ -1520,16 +1738,6 @@ class Teleprompter {
     this.applySettings();
   }
 
-  openReaderWithCurrentScript() {
-    this.text = this.editorEl.value;
-    this.updateActiveScriptText(this.text);
-    this.renameActiveScript();
-    this.adaptText();
-    this.clearPromptDirtyState();
-    const modal = document.getElementById('prompts-modal');
-    if (modal) modal.close();
-  }
-
   getLineAnchor(wordIndex) {
     let safeIndex = min(max(wordIndex, 0), this.numWordSpans - 1);
     let anchor = document.getElementById(`word_${safeIndex}`);
@@ -1713,8 +1921,9 @@ class Teleprompter {
   }
 
   updateDesignControlsFromInputs() {
+    const minSize = this.getVisualTextSizeMin();
     this.textBoxWidth = min(max(parseInt(document.getElementById('text-box-width').value) || 84, 40), 100);
-    this.size = min(max(parseInt(document.getElementById('text-size-live').value) || 120, 40), 220);
+    this.size = min(max(parseInt(document.getElementById('text-size-live').value) || 120, minSize), 220);
     this.textLineHeight = min(max((parseInt(document.getElementById('line-height-live').value) || 125) / 100, 0.9), 2.2);
     this.font = document.getElementById('font-family-live').value;
     this.fontWeight = min(max(parseInt(document.getElementById('font-weight-live').value) || 400, 300), 900);
@@ -1725,6 +1934,7 @@ class Teleprompter {
   }
 
   syncDesignControlInputs() {
+    this.syncVisualControlRanges();
     document.getElementById('text-box-width').value = this.textBoxWidth;
     document.getElementById('text-size-live').value = this.size;
     document.getElementById('line-height-live').value = Math.round(this.textLineHeight * 100);
@@ -1907,14 +2117,26 @@ class Teleprompter {
       return item.title.toLowerCase().includes(query) || item.text.toLowerCase().includes(query);
     });
     const cards = visibleScripts.map(item => `
-      <button type="button" class="script-card${item.id === this.activeTextId ? ' active' : ''}" data-script-id="${item.id}">
-        <span class="script-card-title">${escapeHtml(item.title)}</span>
+      <article
+        class="script-card${item.id === this.activeTextId ? ' active' : ''}"
+        data-script-id="${item.id}"
+        draggable="true"
+        role="button"
+        tabindex="0"
+        aria-label="Abrir ${escapeHtml(item.title)}"
+      >
+        <div class="script-card-topline">
+          <span class="script-card-title">${escapeHtml(item.title)}</span>
+          <span class="script-drag-handle" aria-hidden="true" title="Arrastrar para reordenar">
+            <i class="fa-solid fa-grip-vertical"></i>
+          </span>
+        </div>
         <span class="script-card-meta">
           <span>${item.id === this.activeTextId ? 'Activo' : 'Disponible'}</span>
           <span>${item.text.trim().split(/\s+/).filter(Boolean).length} palabras</span>
         </span>
         <span class="script-card-preview">${escapePlainHtml(this.getScriptPreview(item.text))}</span>
-      </button>
+      </article>
     `).join('');
     if (cards === '') {
       container.innerHTML = '<div class="script-card"><span class="script-card-title">Sin resultados</span><span class="script-card-preview">Prueba con otro término de búsqueda.</span></div>';
@@ -1923,8 +2145,116 @@ class Teleprompter {
     container.innerHTML = cards;
     const cardElements = container.querySelectorAll('[data-script-id]');
     for (let i = 0; i < cardElements.length; i++) {
-      cardElements[i].addEventListener('click', evt => this.selectScript(evt.currentTarget.dataset.scriptId));
+      cardElements[i].addEventListener('click', evt => {
+        if (evt.currentTarget.classList.contains('is-dragging'))
+          return;
+        this.selectScript(evt.currentTarget.dataset.scriptId);
+      });
+      cardElements[i].addEventListener('keydown', evt => {
+        if (evt.key !== 'Enter' && evt.key !== ' ')
+          return;
+        evt.preventDefault();
+        this.selectScript(evt.currentTarget.dataset.scriptId);
+      });
+      cardElements[i].addEventListener('dragstart', evt => this.handleScriptDragStart(evt));
+      cardElements[i].addEventListener('dragover', evt => this.handleScriptDragOver(evt));
+      cardElements[i].addEventListener('dragleave', evt => evt.currentTarget.classList.remove('drag-over'));
+      cardElements[i].addEventListener('drop', evt => this.handleScriptDrop(evt));
+      cardElements[i].addEventListener('dragend', evt => this.handleScriptDragEnd(evt));
     }
+  }
+
+  renderReaderScriptNavigator() {
+    if (!this.readerScriptOptionsEl || !this.readerScriptSwitcherLabelEl)
+      return;
+    const activeIdx = this.getActiveScriptIndex();
+    const activeNumber = activeIdx === -1 ? 0 : activeIdx + 1;
+    this.readerScriptSwitcherLabelEl.textContent = `${activeNumber}/${this.textLibrary.length || 0} ${this.getActiveTextTitle() || 'Capítulos'}`;
+    this.readerScriptOptionsEl.innerHTML = this.textLibrary.map((item, index) => `
+      <button
+        type="button"
+        class="reader-script-option${item.id === this.activeTextId ? ' active' : ''}"
+        data-reader-script-id="${item.id}"
+      >
+        <span class="reader-script-option-index">${index + 1}</span>
+        <span class="reader-script-option-title">${escapeHtml(item.title)}</span>
+      </button>
+    `).join('');
+    if (this.readerPrevScriptEl)
+      this.readerPrevScriptEl.disabled = activeIdx <= 0;
+    if (this.readerNextScriptEl)
+      this.readerNextScriptEl.disabled = activeIdx === -1 || activeIdx >= this.textLibrary.length - 1;
+  }
+
+  getActiveScriptIndex() {
+    return this.textLibrary.findIndex(item => item.id === this.activeTextId);
+  }
+
+  switchReaderScriptByOffset(offset) {
+    if (!Number.isInteger(offset) || this.textLibrary.length <= 1)
+      return;
+    const activeIdx = this.getActiveScriptIndex();
+    if (activeIdx === -1)
+      return;
+    const nextIdx = activeIdx + offset;
+    if (nextIdx < 0 || nextIdx >= this.textLibrary.length)
+      return;
+    this.selectScript(this.textLibrary[nextIdx].id);
+    if (this.readerScriptSwitcherEl)
+      this.readerScriptSwitcherEl.removeAttribute('open');
+  }
+
+  handleScriptDragStart(evt) {
+    const card = evt.currentTarget;
+    if (!card || !card.dataset.scriptId)
+      return;
+    this.draggedScriptId = card.dataset.scriptId;
+    card.classList.add('is-dragging');
+    evt.dataTransfer.effectAllowed = 'move';
+    evt.dataTransfer.setData('text/plain', this.draggedScriptId);
+  }
+
+  handleScriptDragOver(evt) {
+    const card = evt.currentTarget;
+    if (!card || !this.draggedScriptId || card.dataset.scriptId === this.draggedScriptId)
+      return;
+    evt.preventDefault();
+    card.classList.add('drag-over');
+    evt.dataTransfer.dropEffect = 'move';
+  }
+
+  handleScriptDrop(evt) {
+    const card = evt.currentTarget;
+    if (!card || !this.draggedScriptId)
+      return;
+    evt.preventDefault();
+    card.classList.remove('drag-over');
+    const targetScriptId = card.dataset.scriptId;
+    if (!targetScriptId || targetScriptId === this.draggedScriptId)
+      return;
+    this.reorderScriptLibrary(this.draggedScriptId, targetScriptId);
+  }
+
+  handleScriptDragEnd(evt) {
+    evt.currentTarget.classList.remove('is-dragging');
+    if (this.scriptListEl) {
+      const dragTargets = this.scriptListEl.querySelectorAll('.drag-over');
+      for (let i = 0; i < dragTargets.length; i++)
+        dragTargets[i].classList.remove('drag-over');
+    }
+    this.draggedScriptId = null;
+  }
+
+  reorderScriptLibrary(sourceScriptId, targetScriptId) {
+    const sourceIdx = this.textLibrary.findIndex(item => item.id === sourceScriptId);
+    let targetIdx = this.textLibrary.findIndex(item => item.id === targetScriptId);
+    if (sourceIdx === -1 || targetIdx === -1 || sourceIdx === targetIdx)
+      return;
+    const [movedScript] = this.textLibrary.splice(sourceIdx, 1);
+    if (sourceIdx < targetIdx)
+      targetIdx -= 1;
+    this.textLibrary.splice(targetIdx, 0, movedScript);
+    this.applySettings();
   }
 
   selectScript(scriptId) {
